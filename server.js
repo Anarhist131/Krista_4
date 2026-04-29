@@ -151,7 +151,7 @@ io.on('connection', (socket) => {
   // --- РЕГИСТРАЦИЯ ---
   socket.on('register', async (data) => {
     const { login, password, nick } = data;
-    if (!login || !password) return socket.emit('authError', 'Введите ID и пароль');
+    if (!password) return socket.emit('authError', 'Пароль обязателен');
     if (await Profile.findOne({ login })) return socket.emit('authError', 'Такой ID уже существует');
     const userId = await generateUserId();
     const hash = await bcrypt.hash(password, 10);
