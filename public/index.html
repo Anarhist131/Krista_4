@@ -68,17 +68,8 @@
       justify-content: center; transition: 0.2s; flex-shrink: 0;
     }
     .icon-btn:hover { background: var(--accent); border-color: var(--accent); color: #000; }
-    .search-box {
-      margin: 10px 14px; display: flex; align-items: center;
-      background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
-      border-radius: 30px; padding: 8px 16px; backdrop-filter: blur(10px);
-      position: relative; z-index: 5;
-    }
-    .search-box input {
-      flex:1; background: transparent; border:none; color: var(--text-primary);
-      font-size: 0.95rem; outline: none;
-    }
-    .search-box input::placeholder { color: var(--text-secondary); }
+
+    /* Поиск вынесен в отдельную кнопку, открывает модальное окно */
     .list-container { flex:1; overflow-y: auto; padding: 4px 10px; }
     .list-section { margin-bottom: 8px; }
     .section-title { padding: 8px 14px 4px; font-size: 0.8rem; font-weight: 500;
@@ -102,6 +93,7 @@
     .status-dot.offline { background: var(--offline); }
     .room-item .avatar { background: rgba(122,162,247,0.2); color:#fff; }
 
+    /* Меню карандаша (только создание) */
     .create-menu {
       position: absolute; top: 60px; right: 16px;
       background: var(--glass-bg); backdrop-filter: var(--glass-blur);
@@ -153,12 +145,13 @@
     .messages-area { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
     .message-line { padding:6px 0; font-size:0.95rem; line-height:1.4; }
     .message-line .time { color: var(--text-secondary); margin-right:6px; }
-    .message-line .sender { font-weight:600; margin-right:6px; color: var(--accent); }
+    .message-line .sender { font-weight:600; margin-right:6px; color: var(--accent); cursor:pointer; }
+    .message-line .sender:hover { text-decoration: underline; }
     .input-area {
       display:flex; padding:10px 10px; border-top: 1px solid var(--glass-border);
       align-items:center; gap:8px;
     }
-    .input-area input {
+    .input-area input[type="text"] {
       flex:1; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
       border-radius:30px; padding:12px 16px; color:#fff; outline:none; font-size:0.95rem;
     }
@@ -167,20 +160,22 @@
       display:flex; align-items:center; justify-content:center; cursor:pointer;
       box-shadow: 0 0 8px rgba(122,162,247,0.3);
     }
+    #fileInput { display: none; }
     @media (max-width: 500px) { .phone-frame { max-height: 100%; border-radius: 0; } }
   </style>
 </head>
 <body>
 <div class="phone-frame">
   <div class="app-bg"></div>
+
+  <!-- Главный экран -->
   <div id="mainScreen" class="screen hidden">
     <div class="header glass-panel">
       <span class="logo">Криста 4.1</span>
+      <button class="icon-btn" id="searchBtn">🔍</button>
+      <button class="icon-btn" id="createBtn">✏️</button>
       <button class="icon-btn" id="openSettingsBtn">⚙️</button>
-      <button class="icon-btn" id="searchMenuBtn">🔍</button>
-      <div class="create-menu hidden" id="searchMenu">
-        <button id="searchChatOption">🔍 Найти чат/канал</button>
-        <button id="searchUserOption">👤 Найти пользователя</button>
+      <div class="create-menu hidden" id="createMenu">
         <button id="createChatOption">📌 Создать чат</button>
         <button id="createChannelOption">📢 Создать канал</button>
       </div>
@@ -188,6 +183,7 @@
     <div class="list-container" id="contactList"></div>
   </div>
 
+  <!-- Экран чата -->
   <div id="chatScreen" class="screen hidden">
     <div class="chat-header glass-panel">
       <button class="back-btn" id="backFromChat">←</button>
@@ -200,28 +196,24 @@
     <div class="messages-area" id="messagesArea"></div>
     <div class="input-area">
       <input type="text" placeholder="Сообщение..." id="messageInput">
+      <button id="attachBtn">📎</button>
       <button id="sendMessageBtn">➤</button>
     </div>
+    <input type="file" id="fileInput" multiple>
   </div>
 
   <!-- Модальные окна -->
-  <div class="modal-dialog hidden" id="addContactDialog">
-    <h3>Добавить пользователя</h3>
-    <input type="text" placeholder="Введите ID" id="newContactId">
-    <button class="glass-btn" id="confirmAddContact">Добавить</button>
-    <button class="glass-btn" id="cancelAddContact">Отмена</button>
+  <div class="modal-dialog hidden" id="searchDialog">
+    <h3>Поиск</h3>
+    <input type="text" placeholder="Введите ID чата или пользователя" id="searchInputField">
+    <button class="glass-btn" id="confirmSearch">Найти</button>
+    <button class="glass-btn" id="cancelSearch">Отмена</button>
   </div>
   <div class="modal-dialog hidden" id="createRoomDialog">
     <h3 id="createRoomTitle"></h3>
     <input type="text" placeholder="Название" id="newRoomName">
     <button class="glass-btn" id="confirmCreateRoom">Создать</button>
     <button class="glass-btn" id="cancelCreateRoom">Отмена</button>
-  </div>
-  <div class="modal-dialog hidden" id="searchDialog">
-    <h3 id="searchDialogTitle">Поиск</h3>
-    <input type="text" placeholder="Введите ID чата/пользователя" id="searchInputField">
-    <button class="glass-btn" id="confirmSearch">Найти</button>
-    <button class="glass-btn" id="cancelSearch">Отмена</button>
   </div>
   <div class="modal-dialog hidden" id="settingsDialog">
     <h3>Настройки</h3>
@@ -237,6 +229,8 @@
     <div id="userProfileContent"></div>
     <button class="glass-btn" id="closeProfile">Закрыть</button>
   </div>
+
+  <!-- Авторизация -->
   <div class="modal-dialog" id="authDialog">
     <h3 id="authTitle">Вход</h3>
     <input type="text" placeholder="Ваш ID" id="authLogin">
@@ -267,7 +261,7 @@ const chatNameDisplay = document.getElementById('chatNameDisplay');
 const chatIdDisplay = document.getElementById('chatIdDisplay');
 const messageInput = document.getElementById('messageInput');
 const typingHint = document.getElementById('typingHint');
-const searchMenu = document.getElementById('searchMenu');
+const createMenu = document.getElementById('createMenu');
 const authDialog = document.getElementById('authDialog');
 const authTitle = document.getElementById('authTitle');
 const authLogin = document.getElementById('authLogin');
@@ -278,47 +272,11 @@ const authSubmitBtn = document.getElementById('authSubmitBtn');
 const toggleAuthModeBtn = document.getElementById('toggleAuthMode');
 const authError = document.getElementById('authError');
 const searchDialog = document.getElementById('searchDialog');
-const searchDialogTitle = document.getElementById('searchDialogTitle');
 const searchInputField = document.getElementById('searchInputField');
+const fileInput = document.getElementById('fileInput');
+const attachBtn = document.getElementById('attachBtn');
 
 let authMode = 'login';
-let searchMode = 'chat'; // 'chat' или 'user'
-let autoRefreshInterval = null;
-
-// ================== ЗВУК И ВИБРАЦИЯ ==================
-function notifyIncomingMessage() {
-  if (navigator.vibrate) navigator.vibrate(100);
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(800, ctx.currentTime);
-    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.3);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.3);
-  } catch (e) {}
-}
-
-let originalTitle = document.title;
-let titleBlinkInterval;
-function blinkTitle(msg) {
-  if (!document.hidden) return;
-  clearInterval(titleBlinkInterval);
-  titleBlinkInterval = setInterval(() => {
-    document.title = document.title === originalTitle ? msg : originalTitle;
-  }, 1000);
-}
-function stopBlinkTitle() {
-  clearInterval(titleBlinkInterval);
-  document.title = originalTitle;
-}
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) stopBlinkTitle();
-});
 
 // ================== АВТОРИЗАЦИЯ ==================
 const savedToken = localStorage.getItem('k4_token');
@@ -372,7 +330,6 @@ socket.on('authSuccess', (profile) => {
   if (authMode === 'register') {
     alert(`Регистрация успешна! Ваш ID: ${profile.id}. Запомните его для входа с других устройств.`);
   }
-  startAutoRefresh();
   refreshMainList();
 });
 
@@ -381,20 +338,12 @@ socket.on('tokenLoginResult', (res) => {
     currentUser = res.profile;
     authDialog.classList.add('hidden');
     mainScreen.classList.remove('hidden');
-    startAutoRefresh();
     refreshMainList();
   } else {
     localStorage.removeItem('k4_token');
     authDialog.classList.remove('hidden');
   }
 });
-
-function startAutoRefresh() {
-  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-  autoRefreshInterval = setInterval(() => {
-    if (currentUser) refreshMainList();
-  }, 2000);
-}
 
 // ================== ГЛАВНЫЙ ЭКРАН ==================
 function refreshMainList() { socket.emit('getMainList'); }
@@ -405,6 +354,21 @@ socket.on('mainList', (data) => {
 
 function renderContactList() {
   let html = '';
+  // Добавляем "Избранное" всегда первым в чатах
+  html += '<div class="list-section"><div class="section-title">Чаты и каналы</div>';
+  html += `<div class="room-item" data-chat="Избранное" data-id="favorites">
+    <div class="avatar">★</div>
+    <div class="info"><span class="nick">Избранное</span><span class="user-id">[favorites]</span></div></div>`;
+  if (mainListData.rooms.length) {
+    mainListData.rooms.forEach(r => {
+      html += `<div class="room-item" data-chat="${r.name}" data-id="${r.id}">
+        <div class="avatar">#</div>
+        <div class="info"><span class="nick">${r.name}</span><span class="user-id">[${r.id}]</span></div></div>`;
+    });
+  }
+  html += '</div>';
+
+  // Контакты (онлайн и офлайн)
   if (mainListData.onlineContacts.length) {
     html += '<div class="list-section"><div class="section-title">В сети</div>';
     mainListData.onlineContacts.forEach(c => {
@@ -422,15 +386,6 @@ function renderContactList() {
         <div class="avatar">${(c.nick[0]||'').toUpperCase()}</div>
         <div class="info"><span class="nick">${c.nick}</span><span class="user-id">${c.id}</span></div>
         <div class="status-dot offline"></div></div>`;
-    });
-    html += '</div>';
-  }
-  if (mainListData.rooms.length) {
-    html += '<div class="list-section"><div class="section-title">Чаты и каналы</div>';
-    mainListData.rooms.forEach(r => {
-      html += `<div class="room-item" data-chat="${r.name}" data-id="${r.id}">
-        <div class="avatar">#</div>
-        <div class="info"><span class="nick">${r.name}</span><span class="user-id">[${r.id}]</span></div></div>`;
     });
     html += '</div>';
   }
@@ -462,59 +417,42 @@ function openChat(name, id) {
   messageInput.focus();
 }
 
-// ================== ЧАТ ==================
-socket.on('roomInfo', (info) => {
-  currentMessages = info.messages || [];
-  renderMessages();
+// ================== ПОИСК (глобальный) ==================
+document.getElementById('searchBtn').addEventListener('click', () => {
+  searchInputField.value = '';
+  searchDialog.classList.remove('hidden');
+});
+document.getElementById('cancelSearch').addEventListener('click', () => searchDialog.classList.add('hidden'));
+document.getElementById('confirmSearch').addEventListener('click', () => {
+  const id = searchInputField.value.trim();
+  if (!id) return;
+  // Пытаемся найти чат/канал или пользователя
+  socket.emit('globalSearch', { query: id });
+  searchDialog.classList.add('hidden');
 });
 
-socket.on('newMessage', (msg) => {
-  currentMessages.push(msg);
-  appendMessage(msg);
-  messagesArea.scrollTop = messagesArea.scrollHeight;
-  if (msg.userId !== currentUser?.id) {
-    notifyIncomingMessage();
-    if (document.hidden) blinkTitle('Новое сообщение');
-  }
-});
-
-let typingTimer;
-socket.on('typing', (data) => {
-  if (data.userId !== currentUser?.id) {
-    typingHint.textContent = `${data.nick} печатает...`;
-    typingHint.classList.remove('hidden');
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(() => typingHint.classList.add('hidden'), 2000);
-  }
-});
-socket.on('stopTyping', (data) => {
-  if (data.userId !== currentUser?.id) {
-    typingHint.classList.add('hidden');
-  }
-});
-
-messageInput.addEventListener('input', () => {
-  if (!currentRoomId) return;
-  if (messageInput.value.trim().length > 0) {
-    socket.emit('typing', { roomId: currentRoomId });
+// Обработчик результата глобального поиска
+socket.on('globalSearchResult', (result) => {
+  if (result.type === 'room') {
+    openChat(result.name, result.id);
+  } else if (result.type === 'user') {
+    // Начинаем личный чат с этим пользователем
+    socket.emit('startPrivateChat', result.id);
+    // Личный чат откроется после получения 'privateRoomReady'
   } else {
-    socket.emit('stopTyping', { roomId: currentRoomId });
+    alert('Ничего не найдено');
   }
 });
 
-function renderMessages() {
-  messagesArea.innerHTML = '';
-  currentMessages.forEach(appendMessage);
-  messagesArea.scrollTop = messagesArea.scrollHeight;
-}
+// ================== ИЗБРАННОЕ ==================
+// (реализовано как комната с id='favorites', сервер должен её поддерживать)
 
-function appendMessage(msg) {
-  const div = document.createElement('div');
-  div.className = 'message-line';
-  div.innerHTML = `<span class="time">${msg.time}.</span><span class="sender" style="color:${msg.color||'#7aa2f7'}">${msg.user}:</span> ${msg.text}`;
-  messagesArea.appendChild(div);
-}
+// ================== ЛИЧНЫЕ ЧАТЫ ==================
+socket.on('privateRoomReady', ({ roomId, targetId, targetNick }) => {
+  openChat(targetNick, roomId);
+});
 
+// ================== ОТПРАВКА СООБЩЕНИЙ ==================
 document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
 messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
@@ -527,60 +465,102 @@ function sendMessage() {
   typingHint.classList.add('hidden');
 }
 
+// Индикатор печати (оставлен)
+let typingTimer;
+socket.on('typing', (data) => {
+  if (data.userId !== currentUser?.id) {
+    typingHint.textContent = `${data.nick} печатает...`;
+    typingHint.classList.remove('hidden');
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => typingHint.classList.add('hidden'), 2000);
+  }
+});
+socket.on('stopTyping', (data) => {
+  if (data.userId !== currentUser?.id) typingHint.classList.add('hidden');
+});
+
+messageInput.addEventListener('input', () => {
+  if (!currentRoomId) return;
+  if (messageInput.value.trim().length > 0) socket.emit('typing', { roomId: currentRoomId });
+  else socket.emit('stopTyping', { roomId: currentRoomId });
+});
+
+// ================== ОТПРАВКА ФАЙЛОВ ==================
+attachBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file || !currentRoomId) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('roomId', currentRoomId);
+  formData.append('userId', currentUser.id);
+  fetch('/upload/file', { method: 'POST', body: formData })
+    .then(res => res.json())
+    .then(data => {
+      if (data.url) {
+        // Отправляем сообщение с ссылкой на файл
+        socket.emit('chatMessage', { roomId: currentRoomId, text: `📎 ${file.name}: ${data.url}` });
+      }
+    });
+  fileInput.value = '';
+});
+
+// ================== КЛИК ПО НИКУ В СООБЩЕНИИ ==================
+messagesArea.addEventListener('click', (e) => {
+  if (e.target.classList.contains('sender')) {
+    const userId = e.target.dataset.userId;
+    if (userId && userId !== currentUser.id) {
+      socket.emit('startPrivateChat', userId);
+    }
+  }
+});
+
+// ================== ОТРИСОВКА СООБЩЕНИЙ ==================
+socket.on('roomInfo', (info) => {
+  currentMessages = info.messages || [];
+  renderMessages();
+});
+socket.on('newMessage', (msg) => {
+  currentMessages.push(msg);
+  appendMessage(msg);
+  messagesArea.scrollTop = messagesArea.scrollHeight;
+});
+
+function renderMessages() {
+  messagesArea.innerHTML = '';
+  currentMessages.forEach(appendMessage);
+  messagesArea.scrollTop = messagesArea.scrollHeight;
+}
+function appendMessage(msg) {
+  const div = document.createElement('div');
+  div.className = 'message-line';
+  div.innerHTML = `<span class="time">${msg.time}.</span><span class="sender" style="color:${msg.color||'#7aa2f7'}" data-user-id="${msg.userId}">${msg.user}:</span> ${msg.text}`;
+  messagesArea.appendChild(div);
+}
+
+// ================== ВОЗВРАТ НА ГЛАВНЫЙ ЭКРАН ==================
 document.getElementById('backFromChat').addEventListener('click', () => {
   socket.emit('leaveRoom', currentRoomId);
   chatScreen.classList.add('hidden');
   mainScreen.classList.remove('hidden');
   refreshMainList();
-  stopBlinkTitle();
 });
 
-// ================== МЕНЮ ПОИСКА ==================
-document.getElementById('searchMenuBtn').addEventListener('click', (e) => {
+// ================== МЕНЮ СОЗДАНИЯ (карандаш) ==================
+document.getElementById('createBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  searchMenu.classList.toggle('hidden');
+  createMenu.classList.toggle('hidden');
 });
 document.addEventListener('click', (e) => {
-  if (!searchMenu.contains(e.target)) searchMenu.classList.add('hidden');
+  if (!createMenu.contains(e.target)) createMenu.classList.add('hidden');
 });
-
-// Поиск чата/канала
-document.getElementById('searchChatOption').addEventListener('click', () => {
-  searchMenu.classList.add('hidden');
-  openSearchDialog('chat');
-});
-// Поиск пользователя
-document.getElementById('searchUserOption').addEventListener('click', () => {
-  searchMenu.classList.add('hidden');
-  openSearchDialog('user');
-});
-
-function openSearchDialog(mode) {
-  searchMode = mode;
-  searchDialogTitle.textContent = mode === 'chat' ? 'Найти чат/канал' : 'Найти пользователя';
-  searchInputField.value = '';
-  searchDialog.classList.remove('hidden');
-}
-document.getElementById('cancelSearch').addEventListener('click', () => searchDialog.classList.add('hidden'));
-document.getElementById('confirmSearch').addEventListener('click', () => {
-  const id = searchInputField.value.trim();
-  if (!id) return;
-  if (searchMode === 'chat') {
-    socket.emit('findAndJoinRoom', id);
-  } else {
-    // Найти пользователя = добавить в контакты и открыть личный чат
-    socket.emit('addContactAndOpenChat', id);
-  }
-  searchDialog.classList.add('hidden');
-});
-
-// Создание чата/канала (оставлено)
 document.getElementById('createChatOption').addEventListener('click', () => {
-  searchMenu.classList.add('hidden');
+  createMenu.classList.add('hidden');
   openCreateRoomDialog('chat');
 });
 document.getElementById('createChannelOption').addEventListener('click', () => {
-  searchMenu.classList.add('hidden');
+  createMenu.classList.add('hidden');
   openCreateRoomDialog('channel');
 });
 function openCreateRoomDialog(type) {
@@ -626,7 +606,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
   location.reload();
 });
 
-// ================== ПРОФИЛЬ ==================
+// ================== ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ ==================
 document.getElementById('chatInfo').addEventListener('click', () => {
   socket.emit('getUserProfile', currentRoomId);
 });
@@ -642,17 +622,13 @@ document.getElementById('closeProfile').addEventListener('click', () => {
   document.getElementById('userProfileDialog').classList.add('hidden');
 });
 
-// Подписка/отписка и обновление
+// Обновление списка при изменениях
 socket.on('contactsUpdated', () => refreshMainList());
 socket.on('subscribed', () => refreshMainList());
 socket.on('unsubscribed', () => refreshMainList());
 socket.on('roomCreated', () => refreshMainList());
-// Открытие приватного чата после поиска пользователя
-socket.on('privateRoomReady', ({ roomId, targetId, targetNick }) => {
-  openChat(targetNick, roomId);
-});
 
 if (savedToken) socket.emit('loginByToken', savedToken);
 </script>
 </body>
-  </html>
+</html>
