@@ -2,8 +2,8 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-  <title>Криста 4.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover">
+  <title>Криста 5</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0b0b10">
   <style>
@@ -19,6 +19,7 @@
       --radius: 18px;
       --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
       --danger: #f7768e;
+      --status-bar-height: 24px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -30,6 +31,7 @@
       justify-content: center;
       align-items: center;
       overflow: hidden;
+      padding-top: env(safe-area-inset-top);
     }
     .phone-frame {
       width: 100%; max-width: 420px; height: 100vh; max-height: 850px;
@@ -37,11 +39,17 @@
       box-shadow: 0 20px 40px rgba(0,0,0,0.5);
       overflow: hidden; display: flex; flex-direction: column; position: relative;
     }
+    /* Анимированный фон */
     .app-bg {
       position: absolute; top:0;left:0;right:0;bottom:0;
       background: radial-gradient(circle at 30% 10%, rgba(122,162,247,0.12), transparent 40%),
                   radial-gradient(circle at 80% 70%, rgba(187,154,247,0.1), transparent 40%);
       pointer-events: none;
+      animation: bgMove 20s ease-in-out infinite alternate;
+    }
+    @keyframes bgMove {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 100% 100%; }
     }
     .screen { position: relative; flex:1; display:flex; flex-direction: column; z-index:1; overflow: hidden; }
     .hidden { display: none !important; }
@@ -113,6 +121,30 @@
     }
     .create-menu button:hover { background: rgba(255,255,255,0.1); }
 
+    /* Контекстное меню для копирования текста */
+    .context-popup {
+      position: fixed;
+      background: rgba(20,20,30,0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 8px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+    }
+    .context-popup button {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      padding: 10px 16px;
+      border-radius: 10px;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+    .context-popup button:hover { background: var(--accent); color:#000; }
+
     .modal-dialog {
       position: absolute; top:50%; left:50%; transform: translate(-50%,-50%);
       background: var(--glass-bg); backdrop-filter: var(--glass-blur);
@@ -137,22 +169,28 @@
 
     #chatScreen { display:flex; flex-direction:column; }
     .chat-header {
-      display:flex; align-items:center; padding:12px 10px; margin:10px 10px 0;
+      display:flex; align-items:center; padding:12px 10px;
+      margin: 36px 10px 0; /* отступ для статус-бара */
       border-radius: var(--radius) var(--radius) 0 0; gap:8px;
     }
-    .back-btn { background:transparent; border:none; color: var(--accent); font-size:1.5rem; cursor:pointer; padding:0 6px; }
+    .chat-avatar { display:none; }
+    .back-btn { display:none; }
     .chat-header .chat-info { flex:1; cursor:pointer; display:flex; align-items:center; gap:8px; }
     .chat-name { font-weight:600; font-size:1.1rem; }
     .chat-id { font-size:0.75rem; color: var(--text-secondary); }
     .typing-hint { padding: 2px 14px; font-size: 0.8rem; color: var(--accent); font-style: italic; }
     .messages-area { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
-    .message-line { padding:6px 0; font-size:0.95rem; line-height:1.4; }
+    .message-line { padding:6px 0; font-size:0.95rem; line-height:1.4; user-select: text; }
     .message-line .time { color: var(--text-secondary); margin-right:6px; }
     .message-line .sender { font-weight:600; margin-right:6px; color: var(--accent); cursor:pointer; }
     .message-line .sender:hover { text-decoration: underline; }
     .input-area {
       display:flex; padding:10px 10px; border-top: 1px solid var(--glass-border);
       align-items:center; gap:8px;
+    }
+    .input-area .back-btn-chat {
+      background: transparent; border: none; color: var(--accent);
+      font-size: 1.5rem; cursor: pointer; padding: 0 6px;
     }
     .input-area input[type="text"] {
       flex:1; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
@@ -163,6 +201,31 @@
       display:flex; align-items:center; justify-content:center; cursor:pointer;
       box-shadow: 0 0 8px rgba(122,162,247,0.3);
     }
+    #quickReplyMenu {
+      position: fixed;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: 30px;
+      padding: 8px;
+      display: flex;
+      gap: 6px;
+      z-index: 50;
+    }
+    #quickReplyMenu button {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    #quickReplyMenu button:hover { background: var(--accent); color:#000; }
     #fileInput { display: none; }
     @media (max-width: 500px) { .phone-frame { max-height: 100%; border-radius: 0; } }
   </style>
@@ -174,7 +237,7 @@
   <!-- Главный экран -->
   <div id="mainScreen" class="screen hidden">
     <div class="header glass-panel">
-      <span class="logo">Криста 4.1</span>
+      <span class="logo">Криста 5</span>
       <button class="icon-btn" id="searchBtn">🔍</button>
       <button class="icon-btn" id="createBtn">✏️</button>
       <button class="icon-btn" id="openSettingsBtn">⚙️</button>
@@ -189,7 +252,6 @@
   <!-- Экран чата -->
   <div id="chatScreen" class="screen hidden">
     <div class="chat-header glass-panel">
-      <button class="back-btn" id="backFromChat">←</button>
       <div class="chat-info" id="chatInfo">
         <div class="chat-name" id="chatNameDisplay"></div>
         <div class="chat-id" id="chatIdDisplay"></div>
@@ -198,11 +260,27 @@
     <div class="typing-hint hidden" id="typingHint">печатает...</div>
     <div class="messages-area" id="messagesArea"></div>
     <div class="input-area">
+      <button class="back-btn-chat" id="backFromChat">←</button>
       <input type="text" placeholder="Сообщение..." id="messageInput">
       <button id="attachBtn">📎</button>
+      <button id="downloadChatBtn">⬇️</button>
       <button id="sendMessageBtn">➤</button>
     </div>
     <input type="file" id="fileInput" multiple>
+  </div>
+
+  <!-- Контекстное меню для копирования -->
+  <div class="context-popup hidden" id="copyMenu">
+    <button id="copyTextBtn">📋 Копировать текст</button>
+  </div>
+
+  <!-- Меню быстрых ответов -->
+  <div class="hidden" id="quickReplyMenu">
+    <button data-text="Ок">Ок</button>
+    <button data-text="Скоро буду">Скоро буду</button>
+    <button data-text="Привет!">Привет!</button>
+    <button data-text="Спасибо">Спасибо</button>
+    <button data-text="Пока">Пока</button>
   </div>
 
   <!-- Модальные окна -->
@@ -250,19 +328,15 @@
 <script>
 // ================== РЕГИСТРАЦИЯ SERVICE WORKER ==================
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
+  window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then(function(registration) {
-        console.log('SW зарегистрирован:', registration.scope);
-        if ('periodicSync' in registration) {
-          registration.periodicSync.register('check-updates', {
-            minInterval: 12 * 60 * 60 * 1000
-          }).catch(() => {});
+      .then(reg => {
+        console.log('SW зарегистрирован:', reg.scope);
+        if ('periodicSync' in reg) {
+          reg.periodicSync.register('check-updates', { minInterval: 12 * 60 * 60 * 1000 }).catch(()=>{});
         }
       })
-      .catch(function(error) {
-        console.log('Ошибка регистрации SW:', error);
-      });
+      .catch(err => console.log('Ошибка регистрации SW:', err));
   });
 }
 
@@ -295,8 +369,13 @@ const searchDialog = document.getElementById('searchDialog');
 const searchInputField = document.getElementById('searchInputField');
 const fileInput = document.getElementById('fileInput');
 const attachBtn = document.getElementById('attachBtn');
+const downloadChatBtn = document.getElementById('downloadChatBtn');
+const copyMenu = document.getElementById('copyMenu');
+const quickReplyMenu = document.getElementById('quickReplyMenu');
 
 let authMode = 'login';
+let longPressTimer = null;
+let selectedCopyText = '';
 
 // ================== АВТОРИЗАЦИЯ ==================
 const savedToken = localStorage.getItem('k4_token');
@@ -500,6 +579,7 @@ function sendMessage() {
   messageInput.value = '';
   socket.emit('stopTyping', { roomId: currentRoomId });
   typingHint.classList.add('hidden');
+  quickReplyMenu.classList.add('hidden');
 }
 
 let typingTimer;
@@ -521,39 +601,99 @@ messageInput.addEventListener('input', () => {
   else socket.emit('stopTyping', { roomId: currentRoomId });
 });
 
-// ================== ФАЙЛЫ ==================
-attachBtn.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => {
-  const file = fileInput.files[0];
-  if (!file || !currentRoomId) return;
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('roomId', currentRoomId);
-  formData.append('userId', currentUser.id);
-  fetch('/upload/file', { method: 'POST', body: formData })
-    .then(res => res.json())
-    .then(data => {
-      if (data.url) {
-        socket.emit('chatMessage', { roomId: currentRoomId, text: `📎 ${file.name}: ${data.url}` });
-      }
-    });
-  fileInput.value = '';
+// ================== БЫСТРЫЕ ОТВЕТЫ (долгое нажатие на поле ввода) ==================
+messageInput.addEventListener('touchstart', (e) => {
+  longPressTimer = setTimeout(() => {
+    quickReplyMenu.classList.remove('hidden');
+  }, 600);
+});
+messageInput.addEventListener('touchend', () => clearTimeout(longPressTimer));
+messageInput.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+messageInput.addEventListener('mousedown', (e) => {
+  longPressTimer = setTimeout(() => quickReplyMenu.classList.remove('hidden'), 600);
+});
+messageInput.addEventListener('mouseup', () => clearTimeout(longPressTimer));
+messageInput.addEventListener('mouseleave', () => clearTimeout(longPressTimer));
+
+quickReplyMenu.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    messageInput.value = btn.dataset.text;
+    messageInput.focus();
+    quickReplyMenu.classList.add('hidden');
+  });
 });
 
-// ================== КЛИК ПО НИКУ В СООБЩЕНИИ ==================
-messagesArea.addEventListener('click', (e) => {
-  if (e.target.classList.contains('sender')) {
-    const userId = e.target.dataset.userId;
-    if (userId && userId !== currentUser.id) {
-      socket.emit('startPrivateChat', userId);
-    }
-  }
+// ================== СКАЧИВАНИЕ ЧАТА TXT ==================
+downloadChatBtn.addEventListener('click', () => {
+  if (!currentMessages.length) return alert('Нет сообщений для скачивания');
+  const BOM = '\uFEFF';
+  let text = BOM + `Чат: ${chatNameDisplay.textContent} (${chatIdDisplay.textContent})\n\n`;
+  currentMessages.forEach(msg => {
+    text += `[${msg.time}] ${msg.user}: ${msg.text}\n`;
+  });
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `chat_${currentRoomId}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
 });
 
-// ================== ОТРИСОВКА СООБЩЕНИЙ ==================
+// ================== КОПИРОВАНИЕ ТЕКСТА (долгое нажатие на сообщение) ==================
+let copyTarget = null;
+messagesArea.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const line = e.target.closest('.message-line');
+  if (!line) return;
+  const text = line.querySelector('.text')?.textContent || '';
+  selectedCopyText = text;
+  copyMenu.style.left = e.clientX + 'px';
+  copyMenu.style.top = e.clientY + 'px';
+  copyMenu.classList.remove('hidden');
+});
+
+// Долгое нажатие на мобильных
+messagesArea.addEventListener('touchstart', (e) => {
+  copyTarget = e.target.closest('.message-line');
+  if (!copyTarget) return;
+  longPressTimer = setTimeout(() => {
+    const text = copyTarget.querySelector('.text')?.textContent || '';
+    selectedCopyText = text;
+    const touch = e.touches[0];
+    copyMenu.style.left = touch.clientX + 'px';
+    copyMenu.style.top = touch.clientY + 'px';
+    copyMenu.classList.remove('hidden');
+  }, 600);
+});
+messagesArea.addEventListener('touchend', () => clearTimeout(longPressTimer));
+messagesArea.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+
+document.getElementById('copyTextBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText(selectedCopyText).then(() => {
+    copyMenu.classList.add('hidden');
+  });
+});
+document.addEventListener('click', (e) => {
+  if (!copyMenu.contains(e.target)) copyMenu.classList.add('hidden');
+  if (!quickReplyMenu.contains(e.target)) quickReplyMenu.classList.add('hidden');
+});
+
+// ================== ИНДИКАТОР ОНЛАЙН В ШАПКЕ ==================
+// Будем обновлять точку при получении roomInfo
 socket.on('roomInfo', (info) => {
   currentMessages = info.messages || [];
   renderMessages();
+
+  // Проверяем, онлайн ли собеседник (для личных чатов)
+  let onlineDot = '';
+  if (currentRoomId && !currentRoomId.startsWith('6') && !currentRoomId.startsWith('general')) {
+    const participant = info.participants?.find(p => p.id !== currentUser.id);
+    if (participant) {
+      onlineDot = `<span style="width:8px;height:8px;border-radius:50%;background:${participant.online ? '#9ece6a' : '#555'};display:inline-block;margin-left:6px;box-shadow: 0 0 6px ${participant.online ? '#9ece6a' : 'transparent'}"></span>`;
+    }
+  }
+  chatNameDisplay.innerHTML = (chatNameDisplay.textContent || info.name) + onlineDot;
 });
 
 socket.on('newMessage', (msg) => {
@@ -571,7 +711,7 @@ function renderMessages() {
 function appendMessage(msg) {
   const div = document.createElement('div');
   div.className = 'message-line';
-  div.innerHTML = `<span class="time">${msg.time}.</span><span class="sender" style="color:${msg.color||'#7aa2f7'}" data-user-id="${msg.userId}">${msg.user}:</span> ${msg.text}`;
+  div.innerHTML = `<span class="time">${msg.time}.</span><span class="sender" style="color:${msg.color||'#7aa2f7'}" data-user-id="${msg.userId}">${msg.user}:</span> <span class="text">${msg.text}</span>`;
   messagesArea.appendChild(div);
 }
 
@@ -656,4 +796,4 @@ socket.on('roomCreated', () => refreshMainList());
 if (savedToken) socket.emit('loginByToken', savedToken);
 </script>
 </body>
-</html>
+  </html>
