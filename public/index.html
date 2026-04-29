@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
   <title>Криста 4.1</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b0b10">
   <style>
     :root {
       --glass-bg: rgba(15, 15, 20, 0.75);
@@ -252,15 +254,10 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js')
       .then(function(registration) {
         console.log('SW зарегистрирован:', registration.scope);
-        // Регистрируем фоновую синхронизацию, если поддерживается
         if ('periodicSync' in registration) {
           registration.periodicSync.register('check-updates', {
-            minInterval: 12 * 60 * 60 * 1000 // 12 часов
+            minInterval: 12 * 60 * 60 * 1000
           }).catch(() => {});
-        }
-        if ('sync' in registration) {
-          // Можно зарегистрировать тег для sync
-          // registration.sync.register('sync-messages').catch(() => {});
         }
       })
       .catch(function(error) {
@@ -377,7 +374,6 @@ socket.on('mainList', (data) => {
 
 function renderContactList() {
   let html = '';
-  // Общий чат всегда первый
   html += `<div class="list-section"><div class="section-title">Общий чат</div>
     <div class="room-item" data-chat="Общий чат" data-id="general">
       <div class="avatar">#</div>
@@ -395,7 +391,6 @@ function renderContactList() {
     html += '</div>';
   }
 
-  // Контакты онлайн / офлайн
   if (mainListData.onlineContacts.length) {
     html += '<div class="list-section"><div class="section-title">В сети</div>';
     mainListData.onlineContacts.forEach(c => {
@@ -446,7 +441,6 @@ function openChat(name, id) {
   messageInput.focus();
 }
 
-// ================== УДАЛЕНИЕ КОМНАТ ==================
 function attachDeleteListeners() {
   document.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
