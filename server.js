@@ -1,4 +1,4 @@
-// server.js — Криста 4 (полный backend)
+// server.js — Криста 4.1 (исправления и автообновление)
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -32,7 +32,7 @@ const upload = multer({ storage, limits: { fileSize: 2 * 1024 * 1024 } });
 // ========== МОДЕЛИ ==========
 const profileSchema = new mongoose.Schema({
   id: { type: String, unique: true },
-  login: { type: String, unique: true }, // теперь это ID пользователя
+  login: { type: String, unique: true },
   passwordHash: String,
   token: String,
   nick: String,
@@ -42,8 +42,8 @@ const profileSchema = new mongoose.Schema({
   theme: { type: String, default: 'dark' },
   lastSeen: Date,
   blockedUsers: [String],
-  contacts: [String],          // список ID контактов
-  subscribedRooms: [String]    // комнаты и каналы
+  contacts: [String],
+  subscribedRooms: [String]
 });
 const Profile = mongoose.model('Profile', profileSchema);
 
@@ -60,9 +60,7 @@ const roomSchema = new mongoose.Schema({
     user: String,
     userId: String,
     color: String,
-    text: String,
-    replyTo: String,
-    edited: { type: Boolean, default: false }
+    text: String
   }]
 });
 const Room = mongoose.model('Room', roomSchema);
@@ -111,7 +109,7 @@ async function joinRoom(socket, roomId) {
     await room.save();
   }
   socket.join(roomId);
-  // Отправляем историю (последние 500) и информацию
+  // Отправляем историю
   const participantsInfo = await Promise.all(room.participants.map(async id => {
     const p = await Profile.findOne({ id });
     return {
@@ -138,50 +136,61 @@ async function joinRoom(socket, roomId) {
     color: me?.color || '#7aa2f7',
     avatar: me?.avatar || ''
   });
+  // Автоподписка на общий чат
+  if (roomId === 'general' && me && !me.subscribedRooms.includes('general')) {
+    me.subscribedRooms.push('general');
+    await me.save();
+  }
 }
 
 function isUserOnline(userId) {
   return [...io.sockets.sockets.values()].some(s => s.userId === userId);
 }
 
-// ========== СОКЕТЫ ==========
+// ========== СБРОС ТАЙМЕРОВ ОНЛАЙНА (для автообновления) ==========
+// (не требуется, клиент сам запрашивает)
+
+// ========== САМЫЙ ГЛАВНЫЙ КОД ==========
 io.on('connection', (socket) => {
   console.log('+ соединение:', socket.id);
 
   // --- РЕГИСТРАЦИЯ ---
   socket.on('register', async (data) => {
-    const { login, password, nick } = data;
-    if (!password) return socket.emit('authError', 'Пароль обязателен');
-    if (await Profile.findOne({ login })) return socket.emit('authError', 'Такой ID уже существует');
-    const userId = await generateUserId();
-    const hash = await bcrypt.hash(password, 10);
-    const token = generateToken();
-    const profile = await Profile.create({
-      id: userId,
-      login: userId,
-      passwordHash: hash,
-      token,
-      nick: nick || 'User' + userId,
-      lastSeen: new Date()
-    });
-    socket.userId = userId;
-    socket.emit('authSuccess', profile.toObject());
-    joinRoom(socket, 'general');
+    try {
+      const { password, nick } = data;
+      if (!password) return socket.emit('authError', 'Пароль обязателен');
+      const userId = await generateUserId();
+      const hash = await bcrypt.hash(password, 10);
+      const token = generateToken();
+      const profile = await Profile.create({
+        id: userId,
+        login: userId,
+        passwordHash: hash,
+        token,
+        nick: nick || 'User' + userId,
+        lastSeen: new Date()
+      });
+      socket.userId = userId;
+      socket.emit('authSuccess', profile.toObject());
+      joinRoom(socket, 'general');
+    } catch (e) { socket.emit('authError', 'Ошибка регистрации'); }
   });
 
   // --- ВХОД ---
   socket.on('login', async (data) => {
-    const { login, password } = data;
-    const profile = await Profile.findOne({ login });
-    if (!profile) return socket.emit('authError', 'Неверный ID или пароль');
-    const valid = await bcrypt.compare(password, profile.passwordHash);
-    if (!valid) return socket.emit('authError', 'Неверный ID или пароль');
-    profile.token = generateToken();
-    profile.lastSeen = new Date();
-    await profile.save();
-    socket.userId = profile.id;
-    socket.emit('authSuccess', profile.toObject());
-    joinRoom(socket, 'general');
+    try {
+      const { login, password } = data;
+      const profile = await Profile.findOne({ login });
+      if (!profile) return socket.emit('authError', 'Неверный ID или пароль');
+      const valid = await bcrypt.compare(password, profile.passwordHash);
+      if (!valid) return socket.emit('authError', 'Неверный ID или пароль');
+      profile.token = generateToken();
+      profile.lastSeen = new Date();
+      await profile.save();
+      socket.userId = profile.id;
+      socket.emit('authSuccess', profile.toObject());
+      joinRoom(socket, 'general');
+    } catch (e) { socket.emit('authError', 'Ошибка входа'); }
   });
 
   // --- ВХОД ПО ТОКЕНУ ---
@@ -203,11 +212,9 @@ io.on('connection', (socket) => {
     if (data.nick) updates.nick = data.nick.trim();
     if (data.color) updates.color = data.color;
     if (data.description !== undefined) updates.description = data.description;
-    if (data.theme) updates.theme = data.theme;
     const profile = await Profile.findOneAndUpdate({ id: userId }, updates, { new: true });
     if (!profile) return;
     socket.emit('profileUpdated', profile.toObject());
-    // Оповещаем комнаты и контакты?
     const rooms = await Room.find({ participants: userId });
     for (let room of rooms) {
       io.to(room.id).emit('userChanged', {
@@ -228,7 +235,7 @@ io.on('connection', (socket) => {
 
   // --- СОЗДАНИЕ ЧАТА / КАНАЛА ---
   socket.on('createRoom', async (data) => {
-    const { name, type } = data; // type: 'chat' или 'channel'
+    const { name, type } = data;
     const userId = socket.userId;
     if (!name) return;
     const chatId = await generateChatId();
@@ -245,31 +252,52 @@ io.on('connection', (socket) => {
         text: `Комната создана (${type === 'channel' ? 'канал' : 'чат'}): ${chatId}`
       }]
     });
-    // Подписываем создателя
     await Profile.findOneAndUpdate({ id: userId }, { $addToSet: { subscribedRooms: chatId } });
     socket.emit('roomCreated', { roomId: chatId, name, type });
     joinRoom(socket, chatId);
   });
 
-  // --- ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ В КОНТАКТЫ ---
-  socket.on('addContact', async (targetId) => {
+  // --- ПОИСК И ПРИСОЕДИНЕНИЕ К КОМНАТЕ ---
+  socket.on('findAndJoinRoom', async (roomId) => {
+    const room = await Room.findOne({ id: roomId });
+    if (!room) return socket.emit('systemMessage', { text: 'Чат/канал не найден' });
+    joinRoom(socket, roomId);
+  });
+
+  // --- ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ В КОНТАКТЫ И ОТКРЫТИЕ ЛИЧНОГО ЧАТА ---
+  socket.on('addContactAndOpenChat', async (targetId) => {
     const userId = socket.userId;
     if (userId === targetId) return socket.emit('systemMessage', { text: 'Нельзя добавить самого себя' });
     const target = await Profile.findOne({ id: targetId });
     if (!target) return socket.emit('systemMessage', { text: 'Пользователь не найден' });
+    // Добавляем в контакты
     await Profile.findOneAndUpdate({ id: userId }, { $addToSet: { contacts: targetId } });
-    // Возвращаем обновлённый список контактов клиенту
-    const profile = await Profile.findOne({ id: userId });
-    socket.emit('contactsUpdated', profile.contacts);
+    // Создаем личную комнату (если нет)
+    const ids = [userId, targetId].sort();
+    const roomId = 'private_' + ids[0] + '_' + ids[1];
+    let room = await Room.findOne({ id: roomId });
+    if (!room) {
+      const p1 = await Profile.findOne({ id: ids[0] });
+      const p2 = await Profile.findOne({ id: ids[1] });
+      room = await Room.create({
+        id: roomId,
+        name: `Личный: ${p1.nick} / ${p2.nick}`,
+        type: 'chat',
+        creator: 'system',
+        participants: [ids[0], ids[1]],
+        messages: []
+      });
+    }
+    // Отправляем событие с roomId, чтобы клиент открыл чат
+    socket.emit('privateRoomReady', { roomId, targetId, targetNick: target.nick });
+    joinRoom(socket, roomId);
   });
 
-  // --- ПОЛУЧЕНИЕ ПОЛНОГО СПИСКА ДЛЯ ГЛАВНОГО ЭКРАНА ---
+  // --- ПОЛУЧЕНИЕ СПИСКА ДЛЯ ГЛАВНОГО ЭКРАНА ---
   socket.on('getMainList', async () => {
     const userId = socket.userId;
     const profile = await Profile.findOne({ id: userId });
     if (!profile) return;
-
-    // Собираем контакты
     const contacts = await Promise.all(profile.contacts.map(async cid => {
       const p = await Profile.findOne({ id: cid });
       return {
@@ -281,11 +309,8 @@ io.on('connection', (socket) => {
         lastSeen: p?.lastSeen
       };
     }));
-    // Разделяем на онлайн/офлайн
     const onlineContacts = contacts.filter(c => c.online);
     const offlineContacts = contacts.filter(c => !c.online);
-
-    // Комнаты и каналы, на которые подписан
     const rooms = await Room.find({ id: { $in: profile.subscribedRooms } });
     const roomList = rooms.map(r => ({
       id: r.id,
@@ -293,15 +318,10 @@ io.on('connection', (socket) => {
       type: r.type,
       creator: r.creator
     }));
-
-    socket.emit('mainList', {
-      onlineContacts,
-      offlineContacts,
-      rooms: roomList
-    });
+    socket.emit('mainList', { onlineContacts, offlineContacts, rooms: roomList });
   });
 
-  // --- ПРИСОЕДИНЕНИЕ К КОМНАТЕ / ЛИЧНОМУ ЧАТУ ---
+  // --- JOIN / LEAVE ---
   socket.on('joinRoom', (roomId) => joinRoom(socket, roomId));
   socket.on('leaveRoom', async (roomId) => {
     const userId = socket.userId;
@@ -318,17 +338,12 @@ io.on('connection', (socket) => {
     const { roomId, text } = data;
     const userId = socket.userId;
     if (!userId || !text) return;
-
     const profile = await Profile.findOne({ id: userId });
     const room = await Room.findOne({ id: roomId });
     if (!profile || !room) return;
-
-    // Проверка, если канал — только админы могут писать
     if (room.type === 'channel' && !room.admins.includes(userId)) {
       return socket.emit('systemMessage', { text: 'В канале могут писать только администраторы' });
     }
-
-    // Блокировка (для личных чатов)
     if (roomId.startsWith('private_')) {
       const ids = roomId.split('_').slice(1);
       const otherId = ids.find(id => id !== userId);
@@ -339,13 +354,10 @@ io.on('connection', (socket) => {
         }
       }
     }
-
-    // Команды
     if (text.startsWith('/')) {
       handleCommand(room, userId, text.trim(), socket);
       return;
     }
-
     const msg = {
       time: getCurrentTime(),
       user: profile.nick,
@@ -404,7 +416,7 @@ io.on('connection', (socket) => {
     socket.emit('userUnblocked', targetId);
   });
 
-  // --- ЗАПРОС ПРОФИЛЯ (при клике на юзера) ---
+  // --- ПРОФИЛЬ ---
   socket.on('getUserProfile', async (userId) => {
     const profile = await Profile.findOne({ id: userId });
     if (profile) {
@@ -419,6 +431,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  // --- ИНДИКАТОР ПЕЧАТИ ---
+  socket.on('typing', ({ roomId }) => {
+    Profile.findOne({ id: socket.userId }).then(profile => {
+      if (profile) socket.to(roomId).emit('typing', { userId: socket.userId, nick: profile.nick });
+    });
+  });
+  socket.on('stopTyping', ({ roomId }) => {
+    socket.to(roomId).emit('stopTyping', { userId: socket.userId });
+  });
+
   // --- ОТКЛЮЧЕНИЕ ---
   socket.on('disconnect', async () => {
     const userId = socket.userId;
@@ -428,19 +450,14 @@ io.on('connection', (socket) => {
   });
 });
 
-// ========== ОБРАБОТКА КОМАНД ==========
+// ========== КОМАНДЫ ==========
 async function handleCommand(room, userId, cmd, socket) {
   const parts = cmd.split(' ');
   const command = parts[0].toLowerCase();
   const args = parts.slice(1).join(' ');
 
   const sendSystem = async (text) => {
-    const msg = {
-      time: getCurrentTime(),
-      user: 'System',
-      text,
-      color: '#ffaa00'
-    };
+    const msg = { time: getCurrentTime(), user: 'System', text, color: '#ffaa00' };
     room.messages.push(msg);
     if (room.messages.length > 500) room.messages = room.messages.slice(-500);
     await room.save();
@@ -453,46 +470,28 @@ async function handleCommand(room, userId, cmd, socket) {
       return;
     }
     const newName = args.trim();
-    if (!newName) {
-      await sendSystem('Использование: /namechat [Новое название]');
-      return;
-    }
+    if (!newName) { await sendSystem('Использование: /namechat [Новое название]'); return; }
     room.name = newName;
     await room.save();
     io.to(room.id).emit('roomNameChanged', newName);
     await sendSystem(`Название изменено на: ${newName}`);
-  }
-  else if (command === '/op') {
-    if (room.creator !== userId) {
-      await sendSystem('Ошибка: Только создатель может назначать администраторов.');
-      return;
-    }
+  } else if (command === '/op') {
+    if (room.creator !== userId) { await sendSystem('Ошибка: Только создатель может назначать администраторов.'); return; }
     const targetNick = args.trim();
-    if (!targetNick) {
-      await sendSystem('Использование: /op [Никнейм]');
-      return;
-    }
+    if (!targetNick) { await sendSystem('Использование: /op [Никнейм]'); return; }
     const targetUser = await Profile.findOne({ nick: targetNick, id: { $in: room.participants } });
-    if (!targetUser) {
-      await sendSystem(`Участник с ником ${targetNick} не найден.`);
-      return;
-    }
-    if (room.admins.includes(targetUser.id)) {
-      await sendSystem(`${targetNick} уже администратор.`);
-      return;
-    }
+    if (!targetUser) { await sendSystem(`Участник с ником ${targetNick} не найден.`); return; }
+    if (room.admins.includes(targetUser.id)) { await sendSystem(`${targetNick} уже администратор.`); return; }
     room.admins.push(targetUser.id);
     await room.save();
     await sendSystem(`${targetNick} теперь администратор.`);
-  }
-  else if (command === '/whatid') {
+  } else if (command === '/whatid') {
     const list = await Promise.all(room.participants.map(async p => {
       const profile = await Profile.findOne({ id: p });
       return `${profile?.nick || 'Unknown'} [${p}]`;
     }));
     await sendSystem(`Чат: ${room.name} [${room.id}]\nУчастники: ${list.join(', ')}`);
-  }
-  else {
+  } else {
     await sendSystem('Доступные команды: /namechat, /op, /Whatid');
   }
 }
@@ -500,7 +499,6 @@ async function handleCommand(room, userId, cmd, socket) {
 // ========== ЗАПУСК ==========
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/krista4';
-
 mongoose.connect(MONGO_URI)
   .then(async () => {
     console.log('MongoDB подключена');
@@ -515,7 +513,7 @@ mongoose.connect(MONGO_URI)
       });
       console.log('Общий чат создан');
     }
-    server.listen(PORT, () => console.log(`Криста 4 запущена на порту ${PORT}`));
+    server.listen(PORT, () => console.log(`Криста 4.1 запущена на порту ${PORT}`));
   })
   .catch(err => {
     console.error('Ошибка MongoDB:', err);
