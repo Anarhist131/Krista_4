@@ -2,8 +2,8 @@
   "name": "Криста 4.1",
   "short_name": "Криста",
   "description": "Мессенджер Криста 4.1 — общение в реальном времени",
-  "start_url": "/",
-  "display": "standalone",
+  "start_url": "https://krista-4.onrender.com",
+  "display": "fullscreen",
   "background_color": "#0b0b10",
   "theme_color": "#0b0b10",
   "icons": [
@@ -17,5 +17,7 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "orientation": "portrait",
+  "lang": "ru"
 }
