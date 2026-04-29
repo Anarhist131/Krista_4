@@ -76,14 +76,13 @@
       display:flex; align-items:center; padding: 10px 14px; margin: 2px 0;
       border-radius: 14px; cursor: pointer; transition: 0.2s;
       background: rgba(255,255,255,0.02); border: 1px solid transparent;
+      position: relative;
     }
     .contact-item:hover, .room-item:hover { background: rgba(255,255,255,0.08); border-color: var(--glass-border); }
     .avatar {
       width:40px; height:40px; border-radius:50%; background: rgba(255,255,255,0.1);
       display:flex; align-items:center; justify-content:center;
       font-weight:600; color: var(--accent); margin-right:12px; flex-shrink:0;
-      background-size: cover;
-      background-position: center;
     }
     .info { flex:1; min-width:0; }
     .nick { font-weight:600; font-size:1rem; }
@@ -91,7 +90,12 @@
     .status-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-left:8px; }
     .status-dot.online { background: var(--online); box-shadow: 0 0 8px var(--online); }
     .status-dot.offline { background: var(--offline); }
-    .room-item .avatar { background: rgba(122,162,247,0.2); color:#fff; }
+    .delete-btn {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: transparent; border: none; color: var(--danger); font-size:1rem;
+      cursor: pointer; padding: 4px; display: none;
+    }
+    .room-item:hover .delete-btn { display: block; }
 
     .create-menu {
       position: absolute; top: 60px; right: 16px;
@@ -133,10 +137,6 @@
     .chat-header {
       display:flex; align-items:center; padding:12px 10px; margin:10px 10px 0;
       border-radius: var(--radius) var(--radius) 0 0; gap:8px;
-    }
-    .chat-avatar {
-      width:36px; height:36px; border-radius:50%; background: rgba(255,255,255,0.1);
-      background-size: cover; background-position: center; flex-shrink:0;
     }
     .back-btn { background:transparent; border:none; color: var(--accent); font-size:1.5rem; cursor:pointer; padding:0 6px; }
     .chat-header .chat-info { flex:1; cursor:pointer; display:flex; align-items:center; gap:8px; }
@@ -188,7 +188,6 @@
   <div id="chatScreen" class="screen hidden">
     <div class="chat-header glass-panel">
       <button class="back-btn" id="backFromChat">←</button>
-      <div class="chat-avatar" id="chatAvatar"></div>
       <div class="chat-info" id="chatInfo">
         <div class="chat-name" id="chatNameDisplay"></div>
         <div class="chat-id" id="chatIdDisplay"></div>
@@ -214,7 +213,6 @@
   <div class="modal-dialog hidden" id="createRoomDialog">
     <h3 id="createRoomTitle"></h3>
     <input type="text" placeholder="Название" id="newRoomName">
-    <input type="file" id="newRoomAvatar" accept="image/*">
     <button class="glass-btn" id="confirmCreateRoom">Создать</button>
     <button class="glass-btn" id="cancelCreateRoom">Отмена</button>
   </div>
@@ -223,7 +221,6 @@
     <div style="margin:10px 0"><strong>Ваш ID:</strong> <span id="settingsUserId"></span></div>
     <input type="text" id="setNick" placeholder="Ник">
     <input type="text" id="setDesc" placeholder="Описание">
-    <input type="file" id="setAvatar" accept="image/*">
     <button class="glass-btn" id="saveSettings">Сохранить</button>
     <button class="glass-btn danger" id="logoutBtn">🚪 Выйти из аккаунта</button>
     <button class="glass-btn" id="closeSettings">Отмена</button>
@@ -262,7 +259,6 @@ const contactList = document.getElementById('contactList');
 const messagesArea = document.getElementById('messagesArea');
 const chatNameDisplay = document.getElementById('chatNameDisplay');
 const chatIdDisplay = document.getElementById('chatIdDisplay');
-const chatAvatar = document.getElementById('chatAvatar');
 const messageInput = document.getElementById('messageInput');
 const typingHint = document.getElementById('typingHint');
 const createMenu = document.getElementById('createMenu');
@@ -358,45 +354,40 @@ socket.on('mainList', (data) => {
 
 function renderContactList() {
   let html = '';
-
-  // Избранное
-  html += `<div class="list-section"><div class="section-title">Чаты и каналы</div>
-    <div class="room-item" data-chat="Избранное" data-id="favorites">
-      <div class="avatar" style="background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22%3E%3Ctext y=%2230%22 x=%2250%25%22 text-anchor=%22middle%22 fill=%22%23ffd743%22 font-size=%2228%22%3E★%3C/text%3E%3C/svg%3E')"></div>
-      <div class="info"><span class="nick">Избранное</span><span class="user-id">[favorites]</span></div></div>`;
+  // Общий чат всегда первый
+  html += `<div class="list-section"><div class="section-title">Общий чат</div>
+    <div class="room-item" data-chat="Общий чат" data-id="general">
+      <div class="avatar">#</div>
+      <div class="info"><span class="nick">Общий чат</span><span class="user-id">[general]</span></div></div></div>`;
 
   if (mainListData.rooms.length) {
+    html += '<div class="list-section"><div class="section-title">Чаты и каналы</div>';
     mainListData.rooms.forEach(r => {
-      const avatarUrl = r.avatar ? `/avatars/${r.avatar}` : '';
-      const avatarStyle = avatarUrl ? `background-image:url('${avatarUrl}')` : '';
-      html += `<div class="room-item" data-chat="${r.name}" data-id="${r.id}">
-        <div class="avatar" style="${avatarStyle}">${!avatarUrl ? '#' : ''}</div>
-        <div class="info"><span class="nick">${r.name}</span><span class="user-id">[${r.id}]</span></div></div>`;
+      const typeIcon = r.type === 'channel' ? '📢' : '#';
+      html += `<div class="room-item" data-chat="${r.name}" data-id="${r.id}" data-creator="${r.creator}">
+        <div class="avatar">${typeIcon}</div>
+        <div class="info"><span class="nick">${r.name}</span><span class="user-id">[${r.id}]</span></div>
+        <button class="delete-btn" data-id="${r.id}">🗑️</button></div>`;
     });
+    html += '</div>';
   }
-  html += '</div>';
 
-  // Контакты онлайн
+  // Контакты онлайн / офлайн
   if (mainListData.onlineContacts.length) {
     html += '<div class="list-section"><div class="section-title">В сети</div>';
     mainListData.onlineContacts.forEach(c => {
-      const avatarUrl = c.avatar ? `/avatars/${c.avatar}` : '';
-      const avatarStyle = avatarUrl ? `background-image:url('${avatarUrl}')` : '';
       html += `<div class="contact-item" data-chat="${c.nick}" data-id="${c.id}">
-        <div class="avatar" style="${avatarStyle}">${!avatarUrl ? (c.nick[0]||'').toUpperCase() : ''}</div>
+        <div class="avatar">${(c.nick[0]||'').toUpperCase()}</div>
         <div class="info"><span class="nick">${c.nick}</span><span class="user-id">${c.id}</span></div>
         <div class="status-dot online"></div></div>`;
     });
     html += '</div>';
   }
-  // Контакты офлайн
   if (mainListData.offlineContacts.length) {
     html += '<div class="list-section"><div class="section-title">Не в сети</div>';
     mainListData.offlineContacts.forEach(c => {
-      const avatarUrl = c.avatar ? `/avatars/${c.avatar}` : '';
-      const avatarStyle = avatarUrl ? `background-image:url('${avatarUrl}')` : '';
       html += `<div class="contact-item" data-chat="${c.nick}" data-id="${c.id}">
-        <div class="avatar" style="${avatarStyle}">${!avatarUrl ? (c.nick[0]||'').toUpperCase() : ''}</div>
+        <div class="avatar">${(c.nick[0]||'').toUpperCase()}</div>
         <div class="info"><span class="nick">${c.nick}</span><span class="user-id">${c.id}</span></div>
         <div class="status-dot offline"></div></div>`;
     });
@@ -404,6 +395,7 @@ function renderContactList() {
   }
   contactList.innerHTML = html;
   attachChatListeners();
+  attachDeleteListeners();
 }
 
 function attachChatListeners() {
@@ -414,6 +406,8 @@ function attachChatListeners() {
 }
 
 function openChatHandler(e) {
+  // не реагируем на клик по кнопке удаления
+  if (e.target.classList.contains('delete-btn')) return;
   const name = e.currentTarget.dataset.chat;
   const id = e.currentTarget.dataset.id;
   openChat(name, id);
@@ -422,7 +416,6 @@ function openChatHandler(e) {
 function openChat(name, id) {
   chatNameDisplay.textContent = name;
   chatIdDisplay.textContent = id;
-  chatAvatar.style.backgroundImage = ''; // очищаем аватар
   messagesArea.innerHTML = '';
   currentRoomId = id;
   socket.emit('joinRoom', id);
@@ -430,6 +423,27 @@ function openChat(name, id) {
   chatScreen.classList.remove('hidden');
   messageInput.focus();
 }
+
+// ================== УДАЛЕНИЕ КОМНАТ ==================
+function attachDeleteListeners() {
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const roomId = btn.dataset.id;
+      if (confirm('Удалить эту комнату/канал?')) {
+        socket.emit('deleteRoom', roomId);
+      }
+    });
+  });
+}
+
+socket.on('roomDeleted', (roomId) => {
+  refreshMainList();
+  if (currentRoomId === roomId) {
+    chatScreen.classList.add('hidden');
+    mainScreen.classList.remove('hidden');
+  }
+});
 
 // ================== ПОИСК ==================
 document.getElementById('searchBtn').addEventListener('click', () => {
@@ -523,12 +537,6 @@ messagesArea.addEventListener('click', (e) => {
 // ================== ОТРИСОВКА СООБЩЕНИЙ ==================
 socket.on('roomInfo', (info) => {
   currentMessages = info.messages || [];
-  // Установка аватара комнаты (справа от названия)
-  if (info.avatar) {
-    chatAvatar.style.backgroundImage = `url('/avatars/${info.avatar}')`;
-  } else {
-    chatAvatar.style.backgroundImage = '';
-  }
   renderMessages();
 });
 
@@ -579,24 +587,10 @@ function openCreateRoomDialog(type) {
   document.getElementById('createRoomTitle').textContent = type === 'chat' ? 'Создать чат' : 'Создать канал';
   document.getElementById('createRoomDialog').classList.remove('hidden');
   document.getElementById('newRoomName').value = '';
-  document.getElementById('newRoomAvatar').value = '';
   document.getElementById('confirmCreateRoom').onclick = () => {
     const name = document.getElementById('newRoomName').value.trim();
     if (!name) return;
-    const avatarFile = document.getElementById('newRoomAvatar').files[0];
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('type', type);
-    if (avatarFile) formData.append('avatar', avatarFile);
-    formData.append('userId', currentUser.id);
-    // Создаём комнату с аватаркой
-    fetch('/createRoom', { method: 'POST', body: formData })
-      .then(res => res.json())
-      .then(data => {
-        if (data.roomId) {
-          socket.emit('joinRoom', data.roomId);
-        }
-      });
+    socket.emit('createRoom', { name, type });
     document.getElementById('createRoomDialog').classList.add('hidden');
   };
 }
@@ -614,16 +608,9 @@ document.getElementById('openSettingsBtn').addEventListener('click', () => {
 document.getElementById('closeSettings').addEventListener('click', () => {
   document.getElementById('settingsDialog').classList.add('hidden');
 });
-document.getElementById('saveSettings').addEventListener('click', async () => {
+document.getElementById('saveSettings').addEventListener('click', () => {
   const nick = document.getElementById('setNick').value.trim();
   const desc = document.getElementById('setDesc').value.trim();
-  const file = document.getElementById('setAvatar').files[0];
-  if (file) {
-    const formData = new FormData();
-    formData.append('avatar', file);
-    formData.append('userId', currentUser.id);
-    await fetch('/upload/avatar', { method: 'POST', body: formData });
-  }
   socket.emit('updateProfile', { nick, description: desc });
   document.getElementById('settingsDialog').classList.add('hidden');
 });
@@ -638,7 +625,6 @@ document.getElementById('chatInfo').addEventListener('click', () => {
 });
 socket.on('userProfile', (profile) => {
   document.getElementById('userProfileContent').innerHTML = `
-    <img src="${profile.avatar ? '/avatars/'+profile.avatar : ''}" style="width:60px;height:60px;border-radius:50%;">
     <h3>${profile.nick}</h3><p>${profile.description||''}</p>
     <p style="color:var(--text-secondary);">Последний вход: ${new Date(profile.lastSeen).toLocaleString()}</p>
   `;
