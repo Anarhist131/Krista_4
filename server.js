@@ -1,4 +1,4 @@
-// server.js — Криста 4.1 (исправления и автообновление)
+// server.js — Криста 4.1 (глобальный поиск, избранное, файлы, приватные чаты)
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -10,7 +10,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 // ========== Папки ==========
-['public/avatars'].forEach(dir => {
+['public/avatars', 'public/files'].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -19,15 +19,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 const server = http.createServer(app);
 const io = new Server(server);
 
-// ========== MULTER (аватарки) ==========
-const storage = multer.diskStorage({
+// ========== MULTER (аватарки и файлы) ==========
+const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'public/avatars'),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, req.body.userId + '_avatar' + ext);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 2 * 1024 * 1024 } });
+const uploadAvatar = multer({ storage: avatarStorage, limits: { fileSize: 2 * 1024 * 1024 } });
+
+const fileStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'public/files'),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const uploadFile = multer({ storage: fileStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ========== МОДЕЛИ ==========
 const profileSchema = new mongoose.Schema({
@@ -50,7 +59,7 @@ const Profile = mongoose.model('Profile', profileSchema);
 const roomSchema = new mongoose.Schema({
   id: { type: String, unique: true },
   name: String,
-  type: { type: String, enum: ['chat', 'channel'], default: 'chat' },
+  type: { type: String, enum: ['chat', 'channel', 'favorites'], default: 'chat' },
   creator: String,
   admins: [String],
   participants: [String],
@@ -60,7 +69,8 @@ const roomSchema = new mongoose.Schema({
     user: String,
     userId: String,
     color: String,
-    text: String
+    text: String,
+    fileUrl: String   // ссылка на файл
   }]
 });
 const Room = mongoose.model('Room', roomSchema);
@@ -101,15 +111,48 @@ function generateToken() {
 }
 
 async function joinRoom(socket, roomId) {
+  // Для избранного подменяем roomId на персональную комнату
+  if (roomId === 'favorites') {
+    roomId = 'favorites_' + socket.userId;
+  }
   const room = await Room.findOne({ id: roomId });
-  if (!room) return;
+  if (!room) {
+    if (roomId.startsWith('favorites_')) {
+      // создаём комнату избранного, если ещё нет
+      const profile = await Profile.findOne({ id: socket.userId });
+      const newRoom = await Room.create({
+        id: roomId,
+        name: 'Избранное',
+        type: 'favorites',
+        creator: socket.userId,
+        admins: [socket.userId],
+        participants: [socket.userId],
+        messages: []
+      });
+      socket.join(roomId);
+      socket.emit('roomInfo', {
+        roomId,
+        name: newRoom.name,
+        type: newRoom.type,
+        creator: newRoom.creator,
+        participants: [],
+        messages: []
+      });
+      // подписываем пользователя на эту комнату
+      await Profile.findOneAndUpdate({ id: socket.userId }, { $addToSet: { subscribedRooms: roomId } });
+      return;
+    } else {
+      return; // комната не найдена
+    }
+  }
+
   const userId = socket.userId;
   if (!room.participants.includes(userId)) {
     room.participants.push(userId);
     await room.save();
   }
   socket.join(roomId);
-  // Отправляем историю
+
   const participantsInfo = await Promise.all(room.participants.map(async id => {
     const p = await Profile.findOne({ id });
     return {
@@ -120,6 +163,7 @@ async function joinRoom(socket, roomId) {
       online: isUserOnline(id)
     };
   }));
+
   socket.emit('roomInfo', {
     roomId,
     name: room.name,
@@ -128,7 +172,7 @@ async function joinRoom(socket, roomId) {
     participants: participantsInfo,
     messages: room.messages.slice(-500)
   });
-  // Оповещаем остальных
+
   const me = await Profile.findOne({ id: userId });
   socket.to(roomId).emit('userJoined', {
     id: userId,
@@ -136,19 +180,11 @@ async function joinRoom(socket, roomId) {
     color: me?.color || '#7aa2f7',
     avatar: me?.avatar || ''
   });
-  // Автоподписка на общий чат
-  if (roomId === 'general' && me && !me.subscribedRooms.includes('general')) {
-    me.subscribedRooms.push('general');
-    await me.save();
-  }
 }
 
 function isUserOnline(userId) {
   return [...io.sockets.sockets.values()].some(s => s.userId === userId);
 }
-
-// ========== СБРОС ТАЙМЕРОВ ОНЛАЙНА (для автообновления) ==========
-// (не требуется, клиент сам запрашивает)
 
 // ========== САМЫЙ ГЛАВНЫЙ КОД ==========
 io.on('connection', (socket) => {
@@ -172,6 +208,18 @@ io.on('connection', (socket) => {
       });
       socket.userId = userId;
       socket.emit('authSuccess', profile.toObject());
+      // Создаём избранное
+      await Room.create({
+        id: 'favorites_' + userId,
+        name: 'Избранное',
+        type: 'favorites',
+        creator: userId,
+        admins: [userId],
+        participants: [userId],
+        messages: []
+      });
+      // Подписываемся на общий чат и избранное
+      await Profile.findOneAndUpdate({ id: userId }, { $addToSet: { subscribedRooms: 'general', subscribedRooms: 'favorites_' + userId } });
       joinRoom(socket, 'general');
     } catch (e) { socket.emit('authError', 'Ошибка регистрации'); }
   });
@@ -215,22 +263,20 @@ io.on('connection', (socket) => {
     const profile = await Profile.findOneAndUpdate({ id: userId }, updates, { new: true });
     if (!profile) return;
     socket.emit('profileUpdated', profile.toObject());
-    const rooms = await Room.find({ participants: userId });
-    for (let room of rooms) {
-      io.to(room.id).emit('userChanged', {
-        userId,
-        nick: profile.nick,
-        color: profile.color,
-        avatar: profile.avatar
-      });
-    }
   });
 
   // --- ЗАГРУЗКА АВАТАРА ---
-  app.post('/upload/avatar', upload.single('avatar'), async (req, res) => {
+  app.post('/upload/avatar', uploadAvatar.single('avatar'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
     await Profile.findOneAndUpdate({ id: req.body.userId }, { avatar: req.file.filename });
     res.json({ avatar: req.file.filename });
+  });
+
+  // --- ЗАГРУЗКА ФАЙЛА ---
+  app.post('/upload/file', uploadFile.single('file'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+    const fileUrl = '/files/' + req.file.filename;
+    res.json({ url: fileUrl });
   });
 
   // --- СОЗДАНИЕ ЧАТА / КАНАЛА ---
@@ -246,33 +292,41 @@ io.on('connection', (socket) => {
       creator: userId,
       admins: [userId],
       participants: [userId],
-      messages: [{
-        time: getCurrentTime(),
-        user: 'System',
-        text: `Комната создана (${type === 'channel' ? 'канал' : 'чат'}): ${chatId}`
-      }]
+      messages: []
     });
     await Profile.findOneAndUpdate({ id: userId }, { $addToSet: { subscribedRooms: chatId } });
     socket.emit('roomCreated', { roomId: chatId, name, type });
     joinRoom(socket, chatId);
   });
 
-  // --- ПОИСК И ПРИСОЕДИНЕНИЕ К КОМНАТЕ ---
-  socket.on('findAndJoinRoom', async (roomId) => {
-    const room = await Room.findOne({ id: roomId });
-    if (!room) return socket.emit('systemMessage', { text: 'Чат/канал не найден' });
+  // --- ГЛОБАЛЬНЫЙ ПОИСК ---
+  socket.on('globalSearch', async ({ query }) => {
+    // Ищем комнату по точному ID
+    const room = await Room.findOne({ id: query });
+    if (room) {
+      return socket.emit('globalSearchResult', { type: 'room', id: room.id, name: room.name });
+    }
+    // Ищем пользователя по ID
+    const user = await Profile.findOne({ id: query });
+    if (user) {
+      return socket.emit('globalSearchResult', { type: 'user', id: user.id, name: user.nick });
+    }
+    socket.emit('globalSearchResult', { type: 'none' });
+  });
+
+  // --- ПРИСОЕДИНЕНИЕ К КОМНАТЕ ИЗ ПОИСКА (по ID) ---
+  socket.on('findAndJoinRoom', (roomId) => {
     joinRoom(socket, roomId);
   });
 
-  // --- ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ В КОНТАКТЫ И ОТКРЫТИЕ ЛИЧНОГО ЧАТА ---
-  socket.on('addContactAndOpenChat', async (targetId) => {
+  // --- НАЧАТЬ ЛИЧНЫЙ ЧАТ (после поиска или клика по нику) ---
+  socket.on('startPrivateChat', async (targetId) => {
     const userId = socket.userId;
-    if (userId === targetId) return socket.emit('systemMessage', { text: 'Нельзя добавить самого себя' });
     const target = await Profile.findOne({ id: targetId });
     if (!target) return socket.emit('systemMessage', { text: 'Пользователь не найден' });
     // Добавляем в контакты
     await Profile.findOneAndUpdate({ id: userId }, { $addToSet: { contacts: targetId } });
-    // Создаем личную комнату (если нет)
+    // Создаём или находим личную комнату
     const ids = [userId, targetId].sort();
     const roomId = 'private_' + ids[0] + '_' + ids[1];
     let room = await Room.findOne({ id: roomId });
@@ -288,7 +342,6 @@ io.on('connection', (socket) => {
         messages: []
       });
     }
-    // Отправляем событие с roomId, чтобы клиент открыл чат
     socket.emit('privateRoomReady', { roomId, targetId, targetNick: target.nick });
     joinRoom(socket, roomId);
   });
@@ -298,6 +351,8 @@ io.on('connection', (socket) => {
     const userId = socket.userId;
     const profile = await Profile.findOne({ id: userId });
     if (!profile) return;
+
+    // Контакты
     const contacts = await Promise.all(profile.contacts.map(async cid => {
       const p = await Profile.findOne({ id: cid });
       return {
@@ -311,20 +366,30 @@ io.on('connection', (socket) => {
     }));
     const onlineContacts = contacts.filter(c => c.online);
     const offlineContacts = contacts.filter(c => !c.online);
-    const rooms = await Room.find({ id: { $in: profile.subscribedRooms } });
+
+    // Комнаты и каналы (кроме избранного, т.к. оно будет добавлено клиентом)
+    const rooms = await Room.find({
+      id: { $in: profile.subscribedRooms },
+      type: { $ne: 'favorites' }  // исключаем служебные комнаты избранного
+    });
     const roomList = rooms.map(r => ({
       id: r.id,
       name: r.name,
       type: r.type,
       creator: r.creator
     }));
-    socket.emit('mainList', { onlineContacts, offlineContacts, rooms: roomList });
+
+    socket.emit('mainList', {
+      onlineContacts,
+      offlineContacts,
+      rooms: roomList
+    });
   });
 
-  // --- JOIN / LEAVE ---
-  socket.on('joinRoom', (roomId) => joinRoom(socket, roomId));
+  // --- LEAVE ROOM ---
   socket.on('leaveRoom', async (roomId) => {
     const userId = socket.userId;
+    if (roomId === 'favorites') roomId = 'favorites_' + userId;
     const room = await Room.findOne({ id: roomId });
     if (!room) return;
     room.participants = room.participants.filter(id => id !== userId);
@@ -335,12 +400,20 @@ io.on('connection', (socket) => {
 
   // --- ОТПРАВКА СООБЩЕНИЙ ---
   socket.on('chatMessage', async (data) => {
-    const { roomId, text } = data;
+    let { roomId, text } = data;
     const userId = socket.userId;
     if (!userId || !text) return;
+
+    // Перенаправляем избранное в персональную комнату
+    if (roomId === 'favorites') {
+      roomId = 'favorites_' + userId;
+    }
+
     const profile = await Profile.findOne({ id: userId });
     const room = await Room.findOne({ id: roomId });
     if (!profile || !room) return;
+
+    // Проверки для каналов и блокировки
     if (room.type === 'channel' && !room.admins.includes(userId)) {
       return socket.emit('systemMessage', { text: 'В канале могут писать только администраторы' });
     }
@@ -354,10 +427,13 @@ io.on('connection', (socket) => {
         }
       }
     }
+
+    // Команды
     if (text.startsWith('/')) {
       handleCommand(room, userId, text.trim(), socket);
       return;
     }
+
     const msg = {
       time: getCurrentTime(),
       user: profile.nick,
@@ -416,7 +492,7 @@ io.on('connection', (socket) => {
     socket.emit('userUnblocked', targetId);
   });
 
-  // --- ПРОФИЛЬ ---
+  // --- ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ ---
   socket.on('getUserProfile', async (userId) => {
     const profile = await Profile.findOne({ id: userId });
     if (profile) {
@@ -433,11 +509,13 @@ io.on('connection', (socket) => {
 
   // --- ИНДИКАТОР ПЕЧАТИ ---
   socket.on('typing', ({ roomId }) => {
+    if (roomId === 'favorites') roomId = 'favorites_' + socket.userId;
     Profile.findOne({ id: socket.userId }).then(profile => {
       if (profile) socket.to(roomId).emit('typing', { userId: socket.userId, nick: profile.nick });
     });
   });
   socket.on('stopTyping', ({ roomId }) => {
+    if (roomId === 'favorites') roomId = 'favorites_' + socket.userId;
     socket.to(roomId).emit('stopTyping', { userId: socket.userId });
   });
 
@@ -450,7 +528,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ========== КОМАНДЫ ==========
+// ========== КОМАНДЫ (оставлены без изменений) ==========
 async function handleCommand(room, userId, cmd, socket) {
   const parts = cmd.split(' ');
   const command = parts[0].toLowerCase();
