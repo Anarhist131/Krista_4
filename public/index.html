@@ -641,6 +641,29 @@ socket.on('unsubscribed', () => refreshMainList());
 socket.on('roomCreated', () => refreshMainList());
 
 if (savedToken) socket.emit('loginByToken', savedToken);
+
+// Регистрируем периодическую синхронизацию после активации SW
+if ('serviceWorker' in navigator && 'PeriodicSyncManager' in window) {
+  navigator.serviceWorker.ready.then((registration) => {
+    registration.periodicSync.register('check-updates', {
+      minInterval: 12 * 60 * 60 * 1000 // 12 часов (минимальный интервал)
+    }).then(() => console.log('Periodic Sync зарегистрирован'))
+      .catch(err => console.warn('Periodic Sync не поддерживается:', err));
+  });
+}
+
+// Регистрируем фоновую синхронизацию (можно вызвать при отправке сообщения)
+function requestBackgroundSync() {
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.sync.register('sync-messages')
+        .then(() => console.log('Background Sync зарегистрирован'))
+        .catch(err => console.warn('Background Sync не поддерживается:', err));
+    });
+  }
+}
+// Вызываем requestBackgroundSync() при необходимости (например, после отправки сообщения офлайн)
+  
 </script>
 </body>
 </html>
