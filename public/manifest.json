@@ -19,5 +19,9 @@
     }
   ],
   "orientation": "portrait",
-  "lang": "ru"
+  "lang": "ru",
+  "categories": [
+    "social"
+  ],
+  "dir": "auto"
 }
