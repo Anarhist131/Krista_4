@@ -3,26 +3,15 @@
   "short_name": "Криста",
   "description": "Мессенджер Криста 4.1 — общение в реальном времени",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0b0b10",
   "theme_color": "#0b0b10",
-  "id": "/",
   "categories": [
     "social",
     "messaging",
     "communication"
-  ],
-  "screenshots": [
-    {
-      "src": "/screen/1.png",
-      "sizes": "720x1481",
-      "type": "image/png"
-    },
-    {
-      "src": "/screen/2.png",
-      "sizes": "720x1481",
-      "type": "image/png"
-    }
   ],
   "icons": [
     {
@@ -33,6 +22,18 @@
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screen/1.png",
+      "sizes": "720x1481",
+      "type": "image/png"
+    },
+    {
+      "src": "/screen/2.png",
+      "sizes": "720x1481",
       "type": "image/png"
     }
   ]
