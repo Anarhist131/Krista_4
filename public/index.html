@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-  <title>Криста 4</title>
+  <title>Криста 4.1</title>
   <style>
     :root {
       --glass-bg: rgba(15, 15, 20, 0.75);
@@ -48,7 +48,6 @@
       -webkit-backdrop-filter: var(--glass-blur); border: 1px solid var(--glass-border);
       box-shadow: 0 8px 20px rgba(0,0,0,0.3); border-radius: var(--radius);
     }
-    /* Главный экран */
     #mainScreen { display:flex; flex-direction:column; }
     .header {
       padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;
@@ -103,7 +102,6 @@
     .status-dot.offline { background: var(--offline); }
     .room-item .avatar { background: rgba(122,162,247,0.2); color:#fff; }
 
-    /* Меню создания */
     .create-menu {
       position: absolute; top: 60px; right: 16px;
       background: var(--glass-bg); backdrop-filter: var(--glass-blur);
@@ -118,7 +116,6 @@
     }
     .create-menu button:hover { background: rgba(255,255,255,0.1); }
 
-    /* Модальные окна */
     .modal-dialog {
       position: absolute; top:50%; left:50%; transform: translate(-50%,-50%);
       background: var(--glass-bg); backdrop-filter: var(--glass-blur);
@@ -141,7 +138,6 @@
     .glass-btn.danger { border-color: #f7768e; color: #f7768e; }
     .glass-btn.danger:hover { background: #f7768e; color:#fff; }
 
-    /* Экран чата */
     #chatScreen { display:flex; flex-direction:column; }
     .chat-header {
       display:flex; align-items:center; padding:12px 10px; margin:10px 10px 0;
@@ -177,27 +173,21 @@
 <body>
 <div class="phone-frame">
   <div class="app-bg"></div>
-
-  <!-- Главный экран -->
   <div id="mainScreen" class="screen hidden">
     <div class="header glass-panel">
-      <span class="logo">Криста 4</span>
+      <span class="logo">Криста 4.1</span>
       <button class="icon-btn" id="openSettingsBtn">⚙️</button>
-      <button class="icon-btn" id="createBtn">✏️</button>
-      <div class="create-menu hidden" id="createMenu">
+      <button class="icon-btn" id="searchMenuBtn">🔍</button>
+      <div class="create-menu hidden" id="searchMenu">
+        <button id="searchChatOption">🔍 Найти чат/канал</button>
+        <button id="searchUserOption">👤 Найти пользователя</button>
         <button id="createChatOption">📌 Создать чат</button>
         <button id="createChannelOption">📢 Создать канал</button>
-        <button id="addContactOption">👤 Добавить пользователя</button>
       </div>
-    </div>
-    <div class="search-box">
-      <input type="text" placeholder="Поиск по ID..." id="mainSearch">
-      <span style="color:var(--text-secondary);">🔍</span>
     </div>
     <div class="list-container" id="contactList"></div>
   </div>
 
-  <!-- Экран чата -->
   <div id="chatScreen" class="screen hidden">
     <div class="chat-header glass-panel">
       <button class="back-btn" id="backFromChat">←</button>
@@ -227,12 +217,17 @@
     <button class="glass-btn" id="confirmCreateRoom">Создать</button>
     <button class="glass-btn" id="cancelCreateRoom">Отмена</button>
   </div>
+  <div class="modal-dialog hidden" id="searchDialog">
+    <h3 id="searchDialogTitle">Поиск</h3>
+    <input type="text" placeholder="Введите ID чата/пользователя" id="searchInputField">
+    <button class="glass-btn" id="confirmSearch">Найти</button>
+    <button class="glass-btn" id="cancelSearch">Отмена</button>
+  </div>
   <div class="modal-dialog hidden" id="settingsDialog">
     <h3>Настройки</h3>
     <div style="margin:10px 0"><strong>Ваш ID:</strong> <span id="settingsUserId"></span></div>
     <input type="text" id="setNick" placeholder="Ник">
     <input type="text" id="setDesc" placeholder="Описание">
-    <select id="setTheme"><option value="dark">Тёмная</option><option value="light">Светлая</option></select>
     <input type="file" id="setAvatar" accept="image/*">
     <button class="glass-btn" id="saveSettings">Сохранить</button>
     <button class="glass-btn danger" id="logoutBtn">🚪 Выйти из аккаунта</button>
@@ -242,8 +237,6 @@
     <div id="userProfileContent"></div>
     <button class="glass-btn" id="closeProfile">Закрыть</button>
   </div>
-
-  <!-- Авторизация -->
   <div class="modal-dialog" id="authDialog">
     <h3 id="authTitle">Вход</h3>
     <input type="text" placeholder="Ваш ID" id="authLogin">
@@ -266,7 +259,6 @@ let currentRoomId = null;
 let currentMessages = [];
 let mainListData = { onlineContacts: [], offlineContacts: [], rooms: [] };
 
-// DOM
 const mainScreen = document.getElementById('mainScreen');
 const chatScreen = document.getElementById('chatScreen');
 const contactList = document.getElementById('contactList');
@@ -275,7 +267,7 @@ const chatNameDisplay = document.getElementById('chatNameDisplay');
 const chatIdDisplay = document.getElementById('chatIdDisplay');
 const messageInput = document.getElementById('messageInput');
 const typingHint = document.getElementById('typingHint');
-const createMenu = document.getElementById('createMenu');
+const searchMenu = document.getElementById('searchMenu');
 const authDialog = document.getElementById('authDialog');
 const authTitle = document.getElementById('authTitle');
 const authLogin = document.getElementById('authLogin');
@@ -285,16 +277,17 @@ const registerNickField = document.getElementById('registerNickField');
 const authSubmitBtn = document.getElementById('authSubmitBtn');
 const toggleAuthModeBtn = document.getElementById('toggleAuthMode');
 const authError = document.getElementById('authError');
+const searchDialog = document.getElementById('searchDialog');
+const searchDialogTitle = document.getElementById('searchDialogTitle');
+const searchInputField = document.getElementById('searchInputField');
 
 let authMode = 'login';
+let searchMode = 'chat'; // 'chat' или 'user'
+let autoRefreshInterval = null;
 
 // ================== ЗВУК И ВИБРАЦИЯ ==================
 function notifyIncomingMessage() {
-  // Вибрация (только на мобильных устройствах)
-  if (navigator.vibrate) {
-    navigator.vibrate(100);
-  }
-  // Короткий звуковой сигнал через AudioContext
+  if (navigator.vibrate) navigator.vibrate(100);
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
@@ -307,10 +300,9 @@ function notifyIncomingMessage() {
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.3);
-  } catch (e) { /* игнорируем */ }
+  } catch (e) {}
 }
 
-// Уведомление в заголовке вкладки
 let originalTitle = document.title;
 let titleBlinkInterval;
 function blinkTitle(msg) {
@@ -349,7 +341,7 @@ function setAuthMode(mode) {
     authTitle.textContent = 'Регистрация';
     authSubmitBtn.textContent = 'Создать аккаунт';
     toggleAuthModeBtn.textContent = 'Вход';
-    authLogin.style.display = 'none'; // скрываем только само поле ввода
+    authLogin.style.display = 'none';
     registerNickField.classList.remove('hidden');
   }
 }
@@ -362,7 +354,7 @@ authSubmitBtn.addEventListener('click', () => {
   authError.textContent = '';
   if (!password) { authError.textContent = 'Введите пароль'; return; }
   if (authMode === 'register') {
-    socket.emit('register', { login: '', password, nick });
+    socket.emit('register', { password, nick });
   } else {
     const login = authLogin.value.trim();
     if (!login) { authError.textContent = 'Введите ID'; return; }
@@ -380,6 +372,7 @@ socket.on('authSuccess', (profile) => {
   if (authMode === 'register') {
     alert(`Регистрация успешна! Ваш ID: ${profile.id}. Запомните его для входа с других устройств.`);
   }
+  startAutoRefresh();
   refreshMainList();
 });
 
@@ -388,6 +381,7 @@ socket.on('tokenLoginResult', (res) => {
     currentUser = res.profile;
     authDialog.classList.add('hidden');
     mainScreen.classList.remove('hidden');
+    startAutoRefresh();
     refreshMainList();
   } else {
     localStorage.removeItem('k4_token');
@@ -395,49 +389,68 @@ socket.on('tokenLoginResult', (res) => {
   }
 });
 
+function startAutoRefresh() {
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  autoRefreshInterval = setInterval(() => {
+    if (currentUser) refreshMainList();
+  }, 2000);
+}
+
 // ================== ГЛАВНЫЙ ЭКРАН ==================
 function refreshMainList() { socket.emit('getMainList'); }
 socket.on('mainList', (data) => {
   mainListData = data;
   renderContactList();
 });
+
 function renderContactList() {
   let html = '';
   if (mainListData.onlineContacts.length) {
     html += '<div class="list-section"><div class="section-title">В сети</div>';
     mainListData.onlineContacts.forEach(c => {
-      html += `<div class="contact-item" data-chat="${c.nick}" data-id="${c.id}"><div class="avatar">${(c.nick[0]||'').toUpperCase()}</div><div class="info"><span class="nick">${c.nick}</span><span class="user-id">${c.id}</span></div><div class="status-dot online"></div></div>`;
+      html += `<div class="contact-item" data-chat="${c.nick}" data-id="${c.id}">
+        <div class="avatar">${(c.nick[0]||'').toUpperCase()}</div>
+        <div class="info"><span class="nick">${c.nick}</span><span class="user-id">${c.id}</span></div>
+        <div class="status-dot online"></div></div>`;
     });
     html += '</div>';
   }
   if (mainListData.offlineContacts.length) {
     html += '<div class="list-section"><div class="section-title">Не в сети</div>';
     mainListData.offlineContacts.forEach(c => {
-      html += `<div class="contact-item" data-chat="${c.nick}" data-id="${c.id}"><div class="avatar">${(c.nick[0]||'').toUpperCase()}</div><div class="info"><span class="nick">${c.nick}</span><span class="user-id">${c.id}</span></div><div class="status-dot offline"></div></div>`;
+      html += `<div class="contact-item" data-chat="${c.nick}" data-id="${c.id}">
+        <div class="avatar">${(c.nick[0]||'').toUpperCase()}</div>
+        <div class="info"><span class="nick">${c.nick}</span><span class="user-id">${c.id}</span></div>
+        <div class="status-dot offline"></div></div>`;
     });
     html += '</div>';
   }
   if (mainListData.rooms.length) {
     html += '<div class="list-section"><div class="section-title">Чаты и каналы</div>';
     mainListData.rooms.forEach(r => {
-      html += `<div class="room-item" data-chat="${r.name}" data-id="${r.id}"><div class="avatar">#</div><div class="info"><span class="nick">${r.name}</span><span class="user-id">[${r.id}]</span></div></div>`;
+      html += `<div class="room-item" data-chat="${r.name}" data-id="${r.id}">
+        <div class="avatar">#</div>
+        <div class="info"><span class="nick">${r.name}</span><span class="user-id">[${r.id}]</span></div></div>`;
     });
     html += '</div>';
   }
   contactList.innerHTML = html;
   attachChatListeners();
 }
+
 function attachChatListeners() {
   document.querySelectorAll('.contact-item, .room-item').forEach(el => {
     el.removeEventListener('click', openChatHandler);
     el.addEventListener('click', openChatHandler);
   });
 }
+
 function openChatHandler(e) {
   const name = e.currentTarget.dataset.chat;
   const id = e.currentTarget.dataset.id;
   openChat(name, id);
 }
+
 function openChat(name, id) {
   chatNameDisplay.textContent = name;
   chatIdDisplay.textContent = id;
@@ -455,19 +468,16 @@ socket.on('roomInfo', (info) => {
   renderMessages();
 });
 
-// Обработчик нового сообщения с уведомлениями
 socket.on('newMessage', (msg) => {
   currentMessages.push(msg);
   appendMessage(msg);
   messagesArea.scrollTop = messagesArea.scrollHeight;
-  // Уведомления, если сообщение не от нас
   if (msg.userId !== currentUser?.id) {
     notifyIncomingMessage();
     if (document.hidden) blinkTitle('Новое сообщение');
   }
 });
 
-// Индикатор «печатает...»
 let typingTimer;
 socket.on('typing', (data) => {
   if (data.userId !== currentUser?.id) {
@@ -483,7 +493,6 @@ socket.on('stopTyping', (data) => {
   }
 });
 
-// Отправка индикатора печати при вводе
 messageInput.addEventListener('input', () => {
   if (!currentRoomId) return;
   if (messageInput.value.trim().length > 0) {
@@ -498,6 +507,7 @@ function renderMessages() {
   currentMessages.forEach(appendMessage);
   messagesArea.scrollTop = messagesArea.scrollHeight;
 }
+
 function appendMessage(msg) {
   const div = document.createElement('div');
   div.className = 'message-line';
@@ -507,6 +517,7 @@ function appendMessage(msg) {
 
 document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
 messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
 function sendMessage() {
   const text = messageInput.value.trim();
   if (!text || !currentRoomId) return;
@@ -524,20 +535,52 @@ document.getElementById('backFromChat').addEventListener('click', () => {
   stopBlinkTitle();
 });
 
-// ================== МЕНЮ СОЗДАНИЯ ==================
-document.getElementById('createBtn').addEventListener('click', (e) => {
+// ================== МЕНЮ ПОИСКА ==================
+document.getElementById('searchMenuBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  createMenu.classList.toggle('hidden');
+  searchMenu.classList.toggle('hidden');
 });
 document.addEventListener('click', (e) => {
-  if (!createMenu.contains(e.target)) createMenu.classList.add('hidden');
+  if (!searchMenu.contains(e.target)) searchMenu.classList.add('hidden');
 });
+
+// Поиск чата/канала
+document.getElementById('searchChatOption').addEventListener('click', () => {
+  searchMenu.classList.add('hidden');
+  openSearchDialog('chat');
+});
+// Поиск пользователя
+document.getElementById('searchUserOption').addEventListener('click', () => {
+  searchMenu.classList.add('hidden');
+  openSearchDialog('user');
+});
+
+function openSearchDialog(mode) {
+  searchMode = mode;
+  searchDialogTitle.textContent = mode === 'chat' ? 'Найти чат/канал' : 'Найти пользователя';
+  searchInputField.value = '';
+  searchDialog.classList.remove('hidden');
+}
+document.getElementById('cancelSearch').addEventListener('click', () => searchDialog.classList.add('hidden'));
+document.getElementById('confirmSearch').addEventListener('click', () => {
+  const id = searchInputField.value.trim();
+  if (!id) return;
+  if (searchMode === 'chat') {
+    socket.emit('findAndJoinRoom', id);
+  } else {
+    // Найти пользователя = добавить в контакты и открыть личный чат
+    socket.emit('addContactAndOpenChat', id);
+  }
+  searchDialog.classList.add('hidden');
+});
+
+// Создание чата/канала (оставлено)
 document.getElementById('createChatOption').addEventListener('click', () => {
-  createMenu.classList.add('hidden');
+  searchMenu.classList.add('hidden');
   openCreateRoomDialog('chat');
 });
 document.getElementById('createChannelOption').addEventListener('click', () => {
-  createMenu.classList.add('hidden');
+  searchMenu.classList.add('hidden');
   openCreateRoomDialog('channel');
 });
 function openCreateRoomDialog(type) {
@@ -554,27 +597,12 @@ function openCreateRoomDialog(type) {
 document.getElementById('cancelCreateRoom').addEventListener('click', () => {
   document.getElementById('createRoomDialog').classList.add('hidden');
 });
-document.getElementById('addContactOption').addEventListener('click', () => {
-  createMenu.classList.add('hidden');
-  document.getElementById('addContactDialog').classList.remove('hidden');
-  document.getElementById('newContactId').value = '';
-});
-document.getElementById('confirmAddContact').addEventListener('click', () => {
-  const id = document.getElementById('newContactId').value.trim();
-  if (!id) return;
-  socket.emit('addContact', id);
-  document.getElementById('addContactDialog').classList.add('hidden');
-});
-document.getElementById('cancelAddContact').addEventListener('click', () => {
-  document.getElementById('addContactDialog').classList.add('hidden');
-});
 
 // ================== НАСТРОЙКИ ==================
 document.getElementById('openSettingsBtn').addEventListener('click', () => {
   document.getElementById('settingsUserId').textContent = currentUser?.id || '';
   document.getElementById('setNick').value = currentUser?.nick || '';
   document.getElementById('setDesc').value = currentUser?.description || '';
-  document.getElementById('setTheme').value = currentUser?.theme || 'dark';
   document.getElementById('settingsDialog').classList.remove('hidden');
 });
 document.getElementById('closeSettings').addEventListener('click', () => {
@@ -583,7 +611,6 @@ document.getElementById('closeSettings').addEventListener('click', () => {
 document.getElementById('saveSettings').addEventListener('click', async () => {
   const nick = document.getElementById('setNick').value.trim();
   const desc = document.getElementById('setDesc').value.trim();
-  const theme = document.getElementById('setTheme').value;
   const file = document.getElementById('setAvatar').files[0];
   if (file) {
     const formData = new FormData();
@@ -591,17 +618,15 @@ document.getElementById('saveSettings').addEventListener('click', async () => {
     formData.append('userId', currentUser.id);
     await fetch('/upload/avatar', { method: 'POST', body: formData });
   }
-  socket.emit('updateProfile', { nick, description: desc, theme });
+  socket.emit('updateProfile', { nick, description: desc });
   document.getElementById('settingsDialog').classList.add('hidden');
 });
-
-// Выход из аккаунта
 document.getElementById('logoutBtn').addEventListener('click', () => {
   localStorage.removeItem('k4_token');
   location.reload();
 });
 
-// ================== ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ ==================
+// ================== ПРОФИЛЬ ==================
 document.getElementById('chatInfo').addEventListener('click', () => {
   socket.emit('getUserProfile', currentRoomId);
 });
@@ -617,21 +642,17 @@ document.getElementById('closeProfile').addEventListener('click', () => {
   document.getElementById('userProfileDialog').classList.add('hidden');
 });
 
-// Поиск
-document.getElementById('mainSearch').addEventListener('input', (e) => {
-  const query = e.target.value.trim().toLowerCase();
-  document.querySelectorAll('.contact-item, .room-item').forEach(el => {
-    el.style.display = el.dataset.id?.includes(query) ? '' : 'none';
-  });
-});
-
+// Подписка/отписка и обновление
 socket.on('contactsUpdated', () => refreshMainList());
 socket.on('subscribed', () => refreshMainList());
 socket.on('unsubscribed', () => refreshMainList());
 socket.on('roomCreated', () => refreshMainList());
+// Открытие приватного чата после поиска пользователя
+socket.on('privateRoomReady', ({ roomId, targetId, targetNick }) => {
+  openChat(targetNick, roomId);
+});
 
-// Первичный запуск
 if (savedToken) socket.emit('loginByToken', savedToken);
 </script>
 </body>
-</html>
+  </html>
