@@ -4,7 +4,7 @@
   "description": "Мессенджер Криста 4.1 — общение в реальном времени",
   "start_url": "/",
   "id": "/",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#0b0b10",
   "theme_color": "#0b0b10",
