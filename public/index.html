@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <link rel="manifest" href="/manifest.json">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
   <title>Криста 4.1</title>
@@ -247,6 +246,29 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// ================== РЕГИСТРАЦИЯ SERVICE WORKER ==================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js')
+      .then(function(registration) {
+        console.log('SW зарегистрирован:', registration.scope);
+        // Регистрируем фоновую синхронизацию, если поддерживается
+        if ('periodicSync' in registration) {
+          registration.periodicSync.register('check-updates', {
+            minInterval: 12 * 60 * 60 * 1000 // 12 часов
+          }).catch(() => {});
+        }
+        if ('sync' in registration) {
+          // Можно зарегистрировать тег для sync
+          // registration.sync.register('sync-messages').catch(() => {});
+        }
+      })
+      .catch(function(error) {
+        console.log('Ошибка регистрации SW:', error);
+      });
+  });
+}
+
 // ================== ИНИЦИАЛИЗАЦИЯ ==================
 const socket = io();
 let currentUser = null;
@@ -407,7 +429,6 @@ function attachChatListeners() {
 }
 
 function openChatHandler(e) {
-  // не реагируем на клик по кнопке удаления
   if (e.target.classList.contains('delete-btn')) return;
   const name = e.currentTarget.dataset.chat;
   const id = e.currentTarget.dataset.id;
@@ -636,34 +657,9 @@ document.getElementById('closeProfile').addEventListener('click', () => {
 });
 
 socket.on('contactsUpdated', () => refreshMainList());
-socket.on('subscribed', () => refreshMainList());
-socket.on('unsubscribed', () => refreshMainList());
 socket.on('roomCreated', () => refreshMainList());
 
 if (savedToken) socket.emit('loginByToken', savedToken);
-
-// Регистрируем периодическую синхронизацию после активации SW
-if ('serviceWorker' in navigator && 'PeriodicSyncManager' in window) {
-  navigator.serviceWorker.ready.then((registration) => {
-    registration.periodicSync.register('check-updates', {
-      minInterval: 12 * 60 * 60 * 1000 // 12 часов (минимальный интервал)
-    }).then(() => console.log('Periodic Sync зарегистрирован'))
-      .catch(err => console.warn('Periodic Sync не поддерживается:', err));
-  });
-}
-
-// Регистрируем фоновую синхронизацию (можно вызвать при отправке сообщения)
-function requestBackgroundSync() {
-  if ('serviceWorker' in navigator && 'SyncManager' in window) {
-    navigator.serviceWorker.ready.then((registration) => {
-      registration.sync.register('sync-messages')
-        .then(() => console.log('Background Sync зарегистрирован'))
-        .catch(err => console.warn('Background Sync не поддерживается:', err));
-    });
-  }
-}
-// Вызываем requestBackgroundSync() при необходимости (например, после отправки сообщения офлайн)
-  
 </script>
 </body>
 </html>
