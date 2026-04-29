@@ -103,7 +103,7 @@
     .status-dot.offline { background: var(--offline); }
     .room-item .avatar { background: rgba(122,162,247,0.2); color:#fff; }
 
-    /* Меню создания — теперь с высоким z-index */
+    /* Меню создания */
     .create-menu {
       position: absolute; top: 60px; right: 16px;
       background: var(--glass-bg); backdrop-filter: var(--glass-blur);
@@ -151,6 +151,9 @@
     .chat-header .chat-info { flex:1; cursor:pointer; }
     .chat-name { font-weight:600; font-size:1.1rem; }
     .chat-id { font-size:0.75rem; color: var(--text-secondary); }
+    .typing-hint {
+      padding: 2px 14px; font-size: 0.8rem; color: var(--accent); font-style: italic;
+    }
     .messages-area { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
     .message-line { padding:6px 0; font-size:0.95rem; line-height:1.4; }
     .message-line .time { color: var(--text-secondary); margin-right:6px; }
@@ -203,6 +206,7 @@
         <div class="chat-id" id="chatIdDisplay"></div>
       </div>
     </div>
+    <div class="typing-hint hidden" id="typingHint">печатает...</div>
     <div class="messages-area" id="messagesArea"></div>
     <div class="input-area">
       <input type="text" placeholder="Сообщение..." id="messageInput">
@@ -270,6 +274,7 @@ const messagesArea = document.getElementById('messagesArea');
 const chatNameDisplay = document.getElementById('chatNameDisplay');
 const chatIdDisplay = document.getElementById('chatIdDisplay');
 const messageInput = document.getElementById('messageInput');
+const typingHint = document.getElementById('typingHint');
 const createMenu = document.getElementById('createMenu');
 const authDialog = document.getElementById('authDialog');
 const authTitle = document.getElementById('authTitle');
@@ -282,6 +287,46 @@ const toggleAuthModeBtn = document.getElementById('toggleAuthMode');
 const authError = document.getElementById('authError');
 
 let authMode = 'login';
+
+// ================== ЗВУК И ВИБРАЦИЯ ==================
+function notifyIncomingMessage() {
+  // Вибрация (только на мобильных устройствах)
+  if (navigator.vibrate) {
+    navigator.vibrate(100);
+  }
+  // Короткий звуковой сигнал через AudioContext
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  } catch (e) { /* игнорируем */ }
+}
+
+// Уведомление в заголовке вкладки
+let originalTitle = document.title;
+let titleBlinkInterval;
+function blinkTitle(msg) {
+  if (!document.hidden) return;
+  clearInterval(titleBlinkInterval);
+  titleBlinkInterval = setInterval(() => {
+    document.title = document.title === originalTitle ? msg : originalTitle;
+  }, 1000);
+}
+function stopBlinkTitle() {
+  clearInterval(titleBlinkInterval);
+  document.title = originalTitle;
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) stopBlinkTitle();
+});
 
 // ================== АВТОРИЗАЦИЯ ==================
 const savedToken = localStorage.getItem('k4_token');
@@ -298,13 +343,13 @@ function setAuthMode(mode) {
     authTitle.textContent = 'Вход';
     authSubmitBtn.textContent = 'Войти';
     toggleAuthModeBtn.textContent = 'Регистрация';
-    authLogin.parentElement.style.display = '';
+    authLogin.style.display = '';
     registerNickField.classList.add('hidden');
   } else {
     authTitle.textContent = 'Регистрация';
     authSubmitBtn.textContent = 'Создать аккаунт';
     toggleAuthModeBtn.textContent = 'Вход';
-    authLogin.parentElement.style.display = 'none'; // скрываем поле ID
+    authLogin.style.display = 'none'; // скрываем только само поле ввода
     registerNickField.classList.remove('hidden');
   }
 }
@@ -333,7 +378,6 @@ socket.on('authSuccess', (profile) => {
   authDialog.classList.add('hidden');
   mainScreen.classList.remove('hidden');
   if (authMode === 'register') {
-    // Показываем присвоенный ID
     alert(`Регистрация успешна! Ваш ID: ${profile.id}. Запомните его для входа с других устройств.`);
   }
   refreshMainList();
@@ -410,11 +454,45 @@ socket.on('roomInfo', (info) => {
   currentMessages = info.messages || [];
   renderMessages();
 });
+
+// Обработчик нового сообщения с уведомлениями
 socket.on('newMessage', (msg) => {
   currentMessages.push(msg);
   appendMessage(msg);
   messagesArea.scrollTop = messagesArea.scrollHeight;
+  // Уведомления, если сообщение не от нас
+  if (msg.userId !== currentUser?.id) {
+    notifyIncomingMessage();
+    if (document.hidden) blinkTitle('Новое сообщение');
+  }
 });
+
+// Индикатор «печатает...»
+let typingTimer;
+socket.on('typing', (data) => {
+  if (data.userId !== currentUser?.id) {
+    typingHint.textContent = `${data.nick} печатает...`;
+    typingHint.classList.remove('hidden');
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => typingHint.classList.add('hidden'), 2000);
+  }
+});
+socket.on('stopTyping', (data) => {
+  if (data.userId !== currentUser?.id) {
+    typingHint.classList.add('hidden');
+  }
+});
+
+// Отправка индикатора печати при вводе
+messageInput.addEventListener('input', () => {
+  if (!currentRoomId) return;
+  if (messageInput.value.trim().length > 0) {
+    socket.emit('typing', { roomId: currentRoomId });
+  } else {
+    socket.emit('stopTyping', { roomId: currentRoomId });
+  }
+});
+
 function renderMessages() {
   messagesArea.innerHTML = '';
   currentMessages.forEach(appendMessage);
@@ -434,6 +512,8 @@ function sendMessage() {
   if (!text || !currentRoomId) return;
   socket.emit('chatMessage', { roomId: currentRoomId, text });
   messageInput.value = '';
+  socket.emit('stopTyping', { roomId: currentRoomId });
+  typingHint.classList.add('hidden');
 }
 
 document.getElementById('backFromChat').addEventListener('click', () => {
@@ -441,6 +521,7 @@ document.getElementById('backFromChat').addEventListener('click', () => {
   chatScreen.classList.add('hidden');
   mainScreen.classList.remove('hidden');
   refreshMainList();
+  stopBlinkTitle();
 });
 
 // ================== МЕНЮ СОЗДАНИЯ ==================
