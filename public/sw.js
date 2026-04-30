@@ -1,13 +1,13 @@
-// sw.js — Service Worker для Кристы 5
-const CACHE_NAME = 'krista-v5';
+// sw.js — Service Worker для Кристы 6
+const CACHE_NAME = 'krista-v6';
 const ASSETS = [
   '/',
   '/index.html',
   '/style.css',
   '/client.js',
   '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/screen/icon1.png',
+  '/screen/icon2.png'
 ];
 
 // Установка: кешируем основные файлы
@@ -78,7 +78,7 @@ self.addEventListener('periodicsync', (event) => {
 
 // Push-уведомления
 self.addEventListener('push', (event) => {
-  let data = { title: 'Криста 5', body: 'Новое сообщение' };
+  let data = { title: 'Криста 6', body: 'Новое сообщение' };
   if (event.data) {
     try {
       data = event.data.json();
@@ -89,8 +89,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      icon: '/screen/icon1.png',
+      badge: '/screen/icon1.png',
       vibrate: [200, 100, 200],
       data: { url: data.url || '/' }
     })
