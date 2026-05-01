@@ -7,7 +7,6 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0b0b10">
   <style>
-    /* весь старый CSS остаётся без изменений, добавляем только стили для нового модального окна создания */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -110,7 +109,6 @@
       color: #e1e1e1; outline: none;
     }
 
-    /* Музыка */
     .music-actions { display: flex; gap: 8px; margin-bottom: 14px; flex-shrink: 0; }
     .music-actions button {
       background: #1e1e26; border: 1px solid #2c2c34;
@@ -133,7 +131,6 @@
     }
     .ctrl-btn.play { background: #6c5ce7; }
 
-    /* Модальные окна общие */
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.8); display: none; align-items: center;
@@ -176,7 +173,6 @@
       display: flex; align-items: center; gap: 10px;
     }
 
-    /* Настройки */
     .settings-block { margin-bottom: 20px; }
     .settings-block label { display: block; font-size: 13px; color: #aaa; margin-bottom: 6px; }
     .settings-block input, .settings-block .info-text {
@@ -198,7 +194,6 @@
       margin-top: 16px; cursor: pointer;
     }
 
-    /* Новые стили для создания комнаты */
     .type-selector {
       display: flex; gap: 10px; justify-content: center; margin-bottom: 16px;
     }
@@ -232,7 +227,7 @@
       </div>
     </div>
 
-    <!-- Сообщения (чаты) -->
+    <!-- Сообщения -->
     <div id="chatsScreen" class="screen">
       <div id="chatListContainer">
         <div style="font-size:18px; font-weight:bold; margin-bottom:12px;">💬 Чаты</div>
@@ -323,7 +318,7 @@
   </div>
 </div>
 
-<!-- Остальные модальные окна (трек, профиль, авторизация) -->
+<!-- Модальное окно выложить трек -->
 <div class="modal-overlay" id="uploadTrackModal">
   <div class="modal">
     <button class="close-btn" id="closeUploadTrackModal">✕</button>
@@ -336,6 +331,7 @@
   </div>
 </div>
 
+<!-- Модальное окно профиля -->
 <div class="modal-overlay" id="profileModal">
   <div class="modal">
     <button class="close-btn" id="closeProfileModal">✕</button>
@@ -346,6 +342,7 @@
   </div>
 </div>
 
+<!-- Модальное окно авторизации -->
 <div class="modal-overlay" id="authModal">
   <div class="modal">
     <h3 id="authTitle">Вход</h3>
@@ -365,7 +362,6 @@ const socket = io();
 let currentUser = null;
 let currentRoomId = null;
 
-// DOM-элементы
 const screens = document.querySelectorAll('.screen');
 const navButtons = document.querySelectorAll('.nav-btn');
 const feedContent = document.getElementById('feedContent');
@@ -383,7 +379,6 @@ const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 const backToChatList = document.getElementById('backToChatList');
 
-// Создание комнаты
 const createBtn = document.getElementById('createBtn');
 const createRoomModal = document.getElementById('createRoomModal');
 const closeCreateRoomModal = document.getElementById('closeCreateRoomModal');
@@ -395,7 +390,6 @@ const createRoomSubmit = document.getElementById('createRoomSubmit');
 let roomAvatarFile = null;
 let selectedType = 'chat';
 
-// Музыка
 const uploadTrackBtn = document.getElementById('uploadTrackBtn');
 const uploadTrackModal = document.getElementById('uploadTrackModal');
 const closeUploadTrackModal = document.getElementById('closeUploadTrackModal');
@@ -405,7 +399,6 @@ const playPauseBtn = document.getElementById('playPauseBtn');
 const rewindBack = document.getElementById('rewindBack');
 const rewindForward = document.getElementById('rewindForward');
 
-// Настройки
 const avatarPreview = document.getElementById('avatarPreview');
 const avatarInput = document.getElementById('avatarInput');
 const uploadAvatarBtn = document.getElementById('uploadAvatarBtn');
@@ -503,21 +496,17 @@ socket.on('tokenLoginResult', res => {
 // ========== СОЗДАНИЕ КОМНАТЫ ==========
 createBtn.addEventListener('click', () => {
   createRoomModal.classList.add('visible');
-  // Сброс полей
   newRoomName.value = '';
   roomAvatarFile = null;
   roomAvatarPreview.style.backgroundImage = '';
   roomAvatarPreview.textContent = '📷';
   createRoomSubmit.disabled = true;
-  // Тип по умолчанию чат
   selectedType = 'chat';
   typeOptions.forEach(opt => opt.classList.remove('selected'));
   document.querySelector('.type-option[data-type="chat"]').classList.add('selected');
 });
 
-closeCreateRoomModal.addEventListener('click', () => {
-  createRoomModal.classList.remove('visible');
-});
+closeCreateRoomModal.addEventListener('click', () => createRoomModal.classList.remove('visible'));
 
 typeOptions.forEach(opt => {
   opt.addEventListener('click', () => {
@@ -531,9 +520,7 @@ newRoomName.addEventListener('input', () => {
   createRoomSubmit.disabled = !newRoomName.value.trim();
 });
 
-roomAvatarPreview.addEventListener('click', () => {
-  roomAvatarInput.click();
-});
+roomAvatarPreview.addEventListener('click', () => roomAvatarInput.click());
 
 roomAvatarInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
@@ -550,58 +537,35 @@ roomAvatarInput.addEventListener('change', (e) => {
 createRoomSubmit.addEventListener('click', async () => {
   const name = newRoomName.value.trim();
   if (!name) return;
-  const type = selectedType;
-  try {
-    // Сначала создаём комнату через сокет
-    socket.emit('createRoom', { name, type });
-    // Если есть аватар, загружаем его (после создания комнаты, но нужен roomId)
-    // Мы не знаем roomId до ответа сервера, поэтому сделаем загрузку после roomCreated
-    createRoomModal.classList.remove('visible');
-  } catch (err) {
-    alert('Ошибка создания');
-  }
+  socket.emit('createRoom', { name, type: selectedType });
+  createRoomModal.classList.remove('visible');
 });
 
-// Обработчик события от сервера: комната создана
 socket.on('roomCreated', async (data) => {
-  // data: { roomId, name, type }
   if (roomAvatarFile) {
     const form = new FormData();
     form.append('roomAvatar', roomAvatarFile);
     form.append('roomId', data.roomId);
     try {
       await fetch('/upload/roomAvatar', { method: 'POST', body: form });
-    } catch (e) {
-      console.error('Ошибка загрузки аватара комнаты:', e);
-    }
+    } catch (e) {}
     roomAvatarFile = null;
   }
-  // Обновляем список чатов/каналов
   loadChatList();
   loadFeed();
 });
 
 // ========== ЛЕНТА ==========
-function loadFeed() {
-  if (!currentUser) return;
-  socket.emit('getFeed');
-}
+function loadFeed() { if (currentUser) socket.emit('getFeed'); }
 socket.on('feed', messages => {
-  if (!messages.length) {
-    feedPlaceholder.style.display = 'block';
-    return;
-  }
+  if (!messages.length) { feedPlaceholder.style.display = 'block'; return; }
   feedPlaceholder.style.display = 'none';
   let html = '';
   messages.forEach(msg => {
     const roomName = msg.roomName || 'Чат';
-    html += `<div class="chat-item" style="cursor:default;">
-      <div class="avatar">${msg.user ? msg.user[0] : '?'}</div>
-      <div class="chat-info">
-        <div class="name">${escapeHtml(msg.user)} <span style="font-size:12px;color:#888;">в ${escapeHtml(roomName)}</span></div>
-        <div class="last-msg">${escapeHtml(msg.text)}</div>
-      </div>
-    </div>`;
+    html += `<div class="chat-item"><div class="avatar">${msg.user?.[0] || '?'}</div>
+      <div class="chat-info"><div class="name">${escapeHtml(msg.user)} <span style="font-size:12px;color:#888;">в ${escapeHtml(roomName)}</span></div>
+      <div class="last-msg">${escapeHtml(msg.text)}</div></div></div>`;
   });
   feedContent.innerHTML = html;
 });
@@ -622,13 +586,11 @@ socket.on('searchResults', results => {
     if (item.type === 'user') {
       return `<div class="search-item" data-type="user" data-uin="${item.uin}" data-nick="${escapeHtml(item.nick)}">
         <div class="avatar">${item.nick[0]}</div>
-        <div class="chat-info"><div class="name">${escapeHtml(item.nick)}</div><div class="last-msg">UIN: ${item.uin}</div></div>
-      </div>`;
+        <div class="chat-info"><div class="name">${escapeHtml(item.nick)}</div><div class="last-msg">UIN: ${item.uin}</div></div></div>`;
     } else {
       return `<div class="search-item" data-type="room" data-id="${item.id}" data-name="${escapeHtml(item.name)}">
         <div class="avatar">${item.type==='channel'?'📢':'#'}</div>
-        <div class="chat-info"><div class="name">${escapeHtml(item.name)}</div><div class="last-msg">${item.type}</div></div>
-      </div>`;
+        <div class="chat-info"><div class="name">${escapeHtml(item.name)}</div><div class="last-msg">${item.type}</div></div></div>`;
     }
   }).join('');
   searchResults.classList.add('visible');
@@ -661,27 +623,34 @@ document.getElementById('closeProfileModal').addEventListener('click', () => {
   document.getElementById('profileModal').classList.remove('visible');
 });
 
+// ========== ПРИВАТНЫЙ ЧАТ ==========
+socket.on('privateRoomReady', (data) => {
+  currentRoomId = data.roomId;
+  chatRoomName.textContent = data.targetNick;
+  chatRoomStatus.textContent = 'Личный чат';
+  chatRoomAvatar.textContent = (data.targetNick || '?')[0];
+  chatMessages.innerHTML = '';
+  chatListContainer.style.display = 'none';
+  chatRoomContainer.style.display = 'flex';
+  socket.emit('joinRoom', data.roomId);
+});
+
 // ========== ЧАТЫ ==========
-function loadChatList() {
-  if (!currentUser) return;
-  socket.emit('getMainList');
-}
+function loadChatList() { if (currentUser) socket.emit('getMainList'); }
 socket.on('mainList', ({ rooms, contacts }) => {
   let html = '';
   rooms.forEach(r => {
-    const avatarHtml = r.avatar 
-      ? `<div class="avatar" style="background-image:url(/avatars/${r.avatar})"></div>`
+    const avatarHtml = r.avatar
+      ? `<div class="avatar" style="background-image:url(/roomAvatars/${r.avatar})"></div>`
       : `<div class="avatar">${r.type==='channel'?'📢':'#'}</div>`;
     html += `<div class="chat-item" data-room="${r.id}" data-name="${escapeHtml(r.name)}" data-type="${r.type}">
       ${avatarHtml}
-      <div class="chat-info"><div class="name">${escapeHtml(r.name)}</div><div class="last-msg">${r.type}</div></div>
-    </div>`;
+      <div class="chat-info"><div class="name">${escapeHtml(r.name)}</div><div class="last-msg">${r.type}</div></div></div>`;
   });
   contacts.forEach(c => {
     html += `<div class="chat-item" data-contact="${c.id}" data-nick="${escapeHtml(c.nick)}">
       <div class="avatar">${c.nick[0]}</div>
-      <div class="chat-info"><div class="name">${escapeHtml(c.nick)}</div><div class="last-msg">${c.online ? 'В сети' : 'Не в сети'}</div></div>
-    </div>`;
+      <div class="chat-info"><div class="name">${escapeHtml(c.nick)}</div><div class="last-msg">${c.online ? 'В сети' : 'Не в сети'}</div></div></div>`;
   });
   chatList.innerHTML = html || '<div style="color:#888;">Нет чатов</div>';
   attachChatListListeners();
@@ -692,9 +661,7 @@ function attachChatListListeners() {
     el.addEventListener('click', () => openRoom(el.dataset.room, el.dataset.name, el.dataset.type));
   });
   document.querySelectorAll('.chat-item[data-contact]').forEach(el => {
-    el.addEventListener('click', () => {
-      socket.emit('startPrivateChat', el.dataset.contact);
-    });
+    el.addEventListener('click', () => socket.emit('startPrivateChat', el.dataset.contact));
   });
 }
 
@@ -716,20 +683,15 @@ backToChatList.addEventListener('click', () => {
 });
 
 // ========== СООБЩЕНИЯ ==========
-socket.on('roomInfo', ({ messages, participants }) => {
+socket.on('roomInfo', ({ messages }) => {
   messages.forEach(msg => appendMessage(msg));
   chatMessages.scrollTop = chatMessages.scrollHeight;
 });
-
-socket.on('newMessage', msg => {
-  appendMessage(msg);
-});
-
+socket.on('newMessage', msg => appendMessage(msg));
 socket.on('messageEdited', ({ messageId, newText }) => {
   const el = document.querySelector(`[data-id="${messageId}"] .msg-text`);
   if (el) el.textContent = newText + ' (изм.)';
 });
-
 socket.on('messageDeleted', ({ messageId }) => {
   const el = document.querySelector(`[data-id="${messageId}"] .msg-text`);
   if (el) el.textContent = 'Сообщение удалено';
@@ -743,8 +705,7 @@ function appendMessage(msg) {
     ${msg.userId !== currentUser.uin ? `<span class="sender">${escapeHtml(msg.user)}</span>` : ''}
     <span class="msg-text">${escapeHtml(msg.text)}</span>
     ${msg.fileUrl ? `<div><a href="${msg.fileUrl}" target="_blank">📎 Файл</a></div>` : ''}
-    <div class="time">${msg.time || ''}</div>
-  `;
+    <div class="time">${msg.time || ''}</div>`;
   div.addEventListener('contextmenu', e => {
     e.preventDefault();
     if (msg.userId !== currentUser.uin) return;
@@ -798,16 +759,12 @@ async function loadAllTracks() {
       tracks.map(t => `<div class="track-item" data-url="${t.url}" data-title="${escapeHtml(t.title)}">🎵 ${escapeHtml(t.title)}</div>`).join('') +
       '</div>';
   } catch (err) {
-    musicContent.innerHTML = '<div class="empty-feed">⚠ Ошибка загрузки треков</div>';
+    musicContent.innerHTML = '<div class="empty-feed">⚠ Ошибка загрузки</div>';
   }
 }
 
-uploadTrackBtn.addEventListener('click', () => {
-  uploadTrackModal.classList.add('visible');
-});
-closeUploadTrackModal.addEventListener('click', () => {
-  uploadTrackModal.classList.remove('visible');
-});
+uploadTrackBtn.addEventListener('click', () => uploadTrackModal.classList.add('visible'));
+closeUploadTrackModal.addEventListener('click', () => uploadTrackModal.classList.remove('visible'));
 
 selectTrackFileBtn.addEventListener('click', () => {
   const input = document.createElement('input');
@@ -862,7 +819,6 @@ logoutBtn.addEventListener('click', () => {
   location.reload();
 });
 
-// ========== УТИЛИТЫ ==========
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
