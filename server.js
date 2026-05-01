@@ -1,4 +1,4 @@
-// server.js — Криста 8
+// server.js — Криста 8 (полная версия)
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -10,8 +10,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 
-// ========== Папки ==========
-['public/avatars', 'public/files', 'public/music'].forEach(dir => {
+// ========== ПАПКИ ДЛЯ ЗАГРУЗОК ==========
+['public/avatars', 'public/files', 'public/music', 'public/roomAvatars'].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -20,16 +20,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 const server = http.createServer(app);
 const io = new Server(server);
 
-// ========== Rate Limiter (защита от перебора) ==========
+// ========== RATE LIMITER ==========
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 мин
+  windowMs: 15 * 60 * 1000,
   max: 100,
   message: 'Слишком много запросов, попробуйте позже'
 });
 app.use('/api/', limiter);
 app.use('/upload/', limiter);
 
-// ========== MULTER ==========
+// ========== MULTER НАСТРОЙКИ ==========
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'public/avatars'),
   filename: (req, file, cb) => {
@@ -38,6 +38,15 @@ const avatarStorage = multer.diskStorage({
   }
 });
 const uploadAvatar = multer({ storage: avatarStorage, limits: { fileSize: 2 * 1024 * 1024 } });
+
+const roomAvatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'public/roomAvatars'),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, req.body.roomId + '_avatar' + ext);
+  }
+});
+const uploadRoomAvatar = multer({ storage: roomAvatarStorage, limits: { fileSize: 2 * 1024 * 1024 } });
 
 const fileStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'public/files'),
@@ -77,21 +86,22 @@ const userSchema = new mongoose.Schema({
   token: String,
   lastSeen: Date,
   blockedUsers: [String],
-  contacts: [String] // UIN'ы контактов
+  contacts: [String]
 });
 const User = mongoose.model('User', userSchema);
 
 const roomSchema = new mongoose.Schema({
-  id: { type: String, unique: true },    // Nano ID
+  id: { type: String, unique: true },
   name: String,
   type: { type: String, enum: ['chat', 'channel'], default: 'chat' },
-  creator: String,                       // UIN создателя
+  creator: String,
   admins: [String],
   participants: [String],
+  avatar: { type: String, default: '' },
   messages: [{
     _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
     createdAt: { type: Date, default: Date.now },
-    time: String,                        // HH:MM для отображения
+    time: String,
     user: String,
     userId: String,
     text: String,
@@ -102,21 +112,13 @@ const roomSchema = new mongoose.Schema({
 const Room = mongoose.model('Room', roomSchema);
 
 const musicSchema = new mongoose.Schema({
-  id: { type: String, unique: true },    // Nano ID
+  id: { type: String, unique: true },
   title: String,
   userId: String,
   url: String,
   uploadedAt: { type: Date, default: Date.now }
 });
 const Music = mongoose.model('Music', musicSchema);
-
-const playlistSchema = new mongoose.Schema({
-  id: { type: String, unique: true },
-  name: String,
-  userId: String,
-  tracks: [String] // массив music.id
-});
-const Playlist = mongoose.model('Playlist', playlistSchema);
 
 // ========== ГЕНЕРАЦИЯ ID ==========
 function generateNanoId(length = 8) {
@@ -164,6 +166,12 @@ app.post('/upload/avatar', uploadAvatar.single('avatar'), async (req, res) => {
   res.json({ avatar: req.file.filename });
 });
 
+app.post('/upload/roomAvatar', uploadRoomAvatar.single('roomAvatar'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+  await Room.findOneAndUpdate({ id: req.body.roomId }, { avatar: req.file.filename });
+  res.json({ avatar: req.file.filename });
+});
+
 app.post('/upload/file', uploadFile.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
   res.json({ url: '/files/' + req.file.filename });
@@ -188,19 +196,6 @@ app.get('/api/music', async (req, res) => {
   res.json(tracks);
 });
 
-// Плейлисты
-app.get('/api/playlists/:userId', async (req, res) => {
-  const playlists = await Playlist.find({ userId: req.params.userId }).lean();
-  res.json(playlists);
-});
-
-app.post('/api/playlists', express.json(), async (req, res) => {
-  const { name, userId, trackIds } = req.body;
-  const id = generateNanoId(10);
-  await Playlist.create({ id, name, userId, tracks: trackIds || [] });
-  res.json({ id });
-});
-
 // ========== SOCKET.IO ==========
 io.on('connection', (socket) => {
   console.log('+ соединение:', socket.id);
@@ -221,7 +216,7 @@ io.on('connection', (socket) => {
         lastSeen: new Date()
       });
       socket.userId = uin;
-      socket.emit('authSuccess', { uin, nick: user.nick, avatar: user.avatar, token: user.token });
+      socket.emit('authSuccess', { uin: user.uin, nick: user.nick, avatar: user.avatar, token: user.token });
     } catch (e) {
       socket.emit('authError', 'Ошибка регистрации');
     }
@@ -288,7 +283,6 @@ io.on('connection', (socket) => {
     const userId = socket.userId;
     const room = await Room.findOne({ id: roomId });
     if (!room || room.creator !== userId) return;
-    // Полное удаление комнаты (только создатель)
     io.to(roomId).emit('roomDeleted', roomId);
     const sockets = await io.in(roomId).fetchSockets();
     for (const sock of sockets) sock.leave(roomId);
@@ -307,11 +301,13 @@ io.on('connection', (socket) => {
 
   socket.on('globalSearch', async ({ query }) => {
     if (!query) return;
+    // Поиск по точному совпадению ID комнаты
     const room = await Room.findOne({ id: query });
     if (room) return socket.emit('globalSearchResult', { type: 'room', id: room.id, name: room.name });
+    // Поиск пользователя по UIN
     const user = await User.findOne({ uin: query });
     if (user) return socket.emit('globalSearchResult', { type: 'user', uin: user.uin, nick: user.nick, avatar: user.avatar });
-    // Поиск по нику (нечеткий)
+    // Нечёткий поиск по нику и названию
     const users = await User.find({ nick: { $regex: query, $options: 'i' } }).limit(5).lean();
     if (users.length > 0) {
       return socket.emit('searchResults', users.map(u => ({ type: 'user', uin: u.uin, nick: u.nick, avatar: u.avatar })));
@@ -350,13 +346,85 @@ io.on('connection', (socket) => {
       messages: room.messages.slice(-100)
     });
 
-    // Оповещаем других участников
     const me = await User.findOne({ uin: userId });
     socket.to(roomId).emit('userJoined', {
       uin: userId,
       nick: me?.nick || 'Unknown',
       avatar: me?.avatar || ''
     });
+  });
+
+  socket.on('startPrivateChat', async (targetUin) => {
+    const userId = socket.userId;
+    const target = await User.findOne({ uin: targetUin });
+    if (!target) return socket.emit('systemMessage', { text: 'Пользователь не найден' });
+
+    // Добавляем в контакты друг друга
+    await User.findOneAndUpdate({ uin: userId }, { $addToSet: { contacts: targetUin } });
+    await User.findOneAndUpdate({ uin: targetUin }, { $addToSet: { contacts: userId } });
+
+    const ids = [userId, targetUin].sort();
+    const roomId = 'private_' + ids[0] + '_' + ids[1];
+    let room = await Room.findOne({ id: roomId });
+    if (!room) {
+      room = await Room.create({
+        id: roomId,
+        name: `Личный: ${userId} / ${targetUin}`,
+        type: 'chat',
+        creator: 'system',
+        participants: [userId, targetUin],
+        messages: []
+      });
+    }
+    socket.emit('privateRoomReady', { roomId, targetNick: target.nick });
+    joinRoom(socket, roomId);
+  });
+
+  // Вспомогательная функция для присоединения к комнате
+  async function joinRoom(socket, roomId) {
+    const room = await Room.findOne({ id: roomId });
+    if (!room) return;
+    const userId = socket.userId;
+    if (!room.participants.includes(userId)) {
+      room.participants.push(userId);
+      await room.save();
+    }
+    socket.join(roomId);
+    // Отправлять roomInfo не будем, т.к. вызывающий сделает это сам
+  }
+
+  socket.on('getMainList', async () => {
+    const userId = socket.userId;
+    const user = await User.findOne({ uin: userId });
+    if (!user) return;
+
+    const contacts = await Promise.all(user.contacts.map(async cid => {
+      const p = await User.findOne({ uin: cid });
+      return {
+        id: cid,
+        nick: p?.nick || 'Unknown',
+        avatar: p?.avatar || '',
+        online: isUserOnline(cid),
+        lastSeen: p?.lastSeen
+      };
+    }));
+    const onlineContacts = contacts.filter(c => c.online);
+    const offlineContacts = contacts.filter(c => !c.online);
+
+    const rooms = await Room.find({
+      participants: userId,
+      id: { $not: /^private_/ }
+    }).lean();
+
+    const roomList = rooms.map(r => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      creator: r.creator,
+      avatar: r.avatar || ''
+    }));
+
+    socket.emit('mainList', { onlineContacts, offlineContacts, rooms: roomList });
   });
 
   socket.on('chatMessage', async (data) => {
@@ -368,10 +436,7 @@ io.on('connection', (socket) => {
     const room = await Room.findOne({ id: roomId });
     if (!user || !room) return;
 
-    // Проверка прав: в канале пишут только админы
     if (room.type === 'channel' && !room.admins.includes(userId)) return;
-
-    // Проверка блокировки в личных чатах
     if (roomId.startsWith('private_')) {
       const ids = roomId.split('_').slice(1);
       const otherId = ids.find(id => id !== userId);
@@ -475,28 +540,30 @@ io.on('connection', (socket) => {
     socket.emit('feed', messages.slice(0, 50));
   });
 
-  socket.on('deleteAccount', async () => {
+  socket.on('deleteAccount', async (password) => {
     const userId = socket.userId;
     const user = await User.findOne({ uin: userId });
     if (!user) return;
-    const password = data.password; // нужно передать пароль для подтверждения, но пока упростим
-    // Удаляем аватар с диска
+
+    // Удаляем аватар
     if (user.avatar) {
       const avatarPath = path.join(__dirname, 'public/avatars', user.avatar);
       if (fs.existsSync(avatarPath)) fs.unlinkSync(avatarPath);
     }
-    // Заменяем автора во всех сообщениях
+
+    // Заменяем автора в сообщениях
     await Room.updateMany(
       { 'messages.userId': userId },
       { $set: { 'messages.$[elem].user': 'Удалённый пользователь' } },
       { arrayFilters: [{ 'elem.userId': userId }] }
     );
+
     // Выходим из всех комнат
     await Room.updateMany(
       { participants: userId },
       { $pull: { participants: userId } }
     );
-    // Удаляем пользователя
+
     await User.deleteOne({ uin: userId });
     socket.emit('accountDeleted');
     socket.disconnect();
