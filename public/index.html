@@ -18,13 +18,14 @@
       align-items: center;
     }
     .app {
-      width: 100%; max-width: 450px; height: 100vh; max-height: 900px;
+      width: 100%; max-width: 450px; height: 100vh; max-height: 750px;  /* стало компактнее */
       background: #111116; border-radius: 28px;
       box-shadow: 0 30px 50px rgba(0,0,0,0.8);
       overflow: hidden; display: flex; flex-direction: column;
     }
+    /* Шапка – уменьшена */
     .top-header {
-      background: #16161b; padding: 12px 16px;
+      background: #16161b; padding: 8px 16px;
       font-size: 20px; font-weight: bold; color: #fff;
       text-align: center; border-bottom: 1px solid #2a2a30;
       flex-shrink: 0;
@@ -33,10 +34,10 @@
       flex: 1; overflow-y: auto; position: relative;
     }
     .screen {
-      display: none; padding: 16px 14px 90px; min-height: 100%;
+      display: none; padding: 14px 14px 80px; min-height: 100%;
     }
     .screen.active { display: block; }
-    /* Экран музыки должен быть гибким, чтобы панель управления прилипала внизу */
+    /* Экран музыки – гибкий */
     #musicScreen.screen {
       padding-bottom: 0;
       display: none;
@@ -46,35 +47,36 @@
       display: flex;
     }
 
+    /* Нижняя панель – уменьшена */
     .bottom-nav {
-      height: 70px; background: #16161b; border-top: 1px solid #2a2a30;
+      height: 60px; background: #16161b; border-top: 1px solid #2a2a30;
       display: flex; justify-content: space-around; align-items: center;
-      padding: 0 10px 8px; flex-shrink: 0; backdrop-filter: blur(10px);
+      padding: 0 10px 6px; flex-shrink: 0; backdrop-filter: blur(10px);
     }
     .nav-btn {
-      width: 48px; height: 48px; border-radius: 50%;
+      width: 46px; height: 46px; border-radius: 50%;
       background: #202028; border: none;
       display: flex; align-items: center; justify-content: center;
       font-size: 22px; color: #999; cursor: pointer; transition: 0.2s;
     }
     .nav-btn.active { background: #6c5ce7; color: #fff; box-shadow: 0 4px 12px rgba(108,92,231,0.5); }
 
-    .header-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .header-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
     .header-bar input {
       flex: 1; background: #1e1e26; border: 1px solid #2c2c34;
       border-radius: 20px; padding: 10px 14px; color: #e1e1e1;
       outline: none; font-size: 14px;
     }
     .icon-circle {
-      width: 42px; height: 42px; border-radius: 50%;
+      width: 40px; height: 40px; border-radius: 50%;
       background: #1e1e26; border: 1px solid #2c2c34;
       display: flex; align-items: center; justify-content: center;
       font-size: 18px; color: #ccc; cursor: pointer; flex-shrink: 0;
     }
     .empty-feed {
-      background: #1a1a22; border-radius: 20px; padding: 32px 20px;
+      background: #1a1a22; border-radius: 20px; padding: 28px 20px;
       text-align: center; color: #777; font-size: 15px; line-height: 1.5;
-      margin-top: 20px;
+      margin-top: 16px;
     }
 
     .chat-list .chat-item {
@@ -93,7 +95,7 @@
 
     .chat-room { display: flex; flex-direction: column; height: 100%; }
     .chat-room-header {
-      background: #1a1a22; padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+      background: #1a1a22; padding: 8px 14px; display: flex; align-items: center; gap: 10px;
       border-bottom: 1px solid #2c2c30;
     }
     .back-btn { background: none; border: none; color: #6c5ce7; font-size: 20px; cursor: pointer; }
@@ -122,26 +124,26 @@
       color: #e1e1e1; text-align: left; cursor: pointer; font-size: 13px;
     }
     .chat-room-input {
-      padding: 10px; display: flex; gap: 8px; background: #1a1a22; border-top: 1px solid #2c2c30;
+      padding: 8px; display: flex; gap: 8px; background: #1a1a22; border-top: 1px solid #2c2c30;
     }
     .chat-room-input input {
       flex: 1; background: #25252e; border: none; border-radius: 20px; padding: 10px 14px;
       color: #e1e1e1; outline: none;
     }
 
-    .music-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    /* Музыка – только список и нижняя панель */
+    .music-actions {
+      display: flex; gap: 8px; margin-bottom: 14px; flex-shrink: 0;
+    }
     .music-actions button {
-      flex: 1; min-width: 100px; background: #1e1e26; border: 1px solid #2c2c34;
-      border-radius: 12px; padding: 10px; color: #e1e1e1; font-size: 13px; cursor: pointer;
+      background: #1e1e26; border: 1px solid #2c2c34;
+      border-radius: 12px; padding: 10px 14px; color: #e1e1e1; font-size: 13px; cursor: pointer;
     }
     .music-content { flex: 1; overflow-y: auto; margin-bottom: 8px; }
-    .track-list { margin-bottom: 16px; }
+    .track-list { margin-bottom: 12px; }
     .track-item {
       display: flex; justify-content: space-between; align-items: center;
       padding: 10px 0; border-bottom: 1px solid #2a2a30; cursor: pointer;
-    }
-    .playlist-header {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
     }
     .music-controls {
       display: flex; justify-content: center; align-items: center; gap: 16px;
@@ -154,27 +156,7 @@
     }
     .ctrl-btn.play { background: #6c5ce7; }
 
-    .settings-block { margin-bottom: 24px; }
-    .settings-block label { display: block; font-size: 13px; color: #aaa; margin-bottom: 6px; }
-    .settings-block input, .settings-block .info-text {
-      width: 100%; background: #1e1e26; border: 1px solid #2c2c34;
-      border-radius: 10px; padding: 12px; color: #e1e1e1; font-size: 14px; outline: none;
-    }
-    .avatar-upload { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-    .avatar-upload img {
-      width: 56px; height: 56px; border-radius: 50%; object-fit: cover; background: #2a2a35;
-    }
-    .about-section {
-      margin-top: 30px; border-top: 1px solid #2a2a30; padding-top: 20px;
-    }
-    .about-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
-    .about-item span:last-child { color: #aaa; }
-    .btn-danger {
-      width: 100%; background: #2d1f2d; border: 1px solid #b71c1c;
-      color: #f7768e; border-radius: 12px; padding: 14px; font-size: 15px;
-      margin-top: 20px; cursor: pointer;
-    }
-
+    /* Модальные окна общие */
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.8); display: none; align-items: center;
@@ -182,13 +164,25 @@
     }
     .modal-overlay.visible { display: flex; }
     .modal {
-      background: #1e1e26; border-radius: 16px; padding: 20px;
-      width: 90%; max-width: 320px; color: #e1e1e1; position: relative;
+      background: #1e1e26; border-radius: 16px; padding: 18px;
+      width: 90%; max-width: 300px; color: #e1e1e1; position: relative;
+      text-align: center;
     }
     .modal .close-btn {
-      position: absolute; top: 10px; right: 14px;
+      position: absolute; top: 8px; right: 12px;
       background: none; border: none; color: #ccc; font-size: 20px; cursor: pointer;
     }
+    .modal h3 { margin-bottom: 16px; font-size: 18px; }
+    .modal button {
+      width: 100%; background: #6c5ce7; border: none; border-radius: 10px;
+      padding: 12px; color: #fff; font-size: 14px; cursor: pointer; margin-top: 8px;
+    }
+    .modal .secondary-btn {
+      background: #2a2a35; color: #ccc; margin-top: 10px;
+    }
+    .modal .hint { font-size: 12px; color: #888; margin: 8px 0; }
+
+    /* Профиль */
     .profile-avatar {
       width: 80px; height: 80px; border-radius: 50%;
       background: #6c5ce7; margin: 0 auto 12px;
@@ -197,10 +191,7 @@
     }
     .profile-name { text-align: center; font-size: 18px; margin-bottom: 4px; }
     .profile-uin { text-align: center; font-size: 13px; color: #aaa; margin-bottom: 16px; }
-    .modal button {
-      width: 100%; background: #6c5ce7; border: none; border-radius: 10px;
-      padding: 12px; color: #fff; font-size: 15px; cursor: pointer; margin-top: 8px;
-    }
+
     .search-results {
       background: #1a1a22; border-radius: 12px; margin-top: 8px;
       overflow: hidden; display: none;
@@ -209,6 +200,28 @@
     .search-item {
       padding: 12px 16px; border-bottom: 1px solid #2a2a30; cursor: pointer;
       display: flex; align-items: center; gap: 10px;
+    }
+
+    /* --- НАСТРОЙКИ --- */
+    .settings-block { margin-bottom: 20px; }
+    .settings-block label { display: block; font-size: 13px; color: #aaa; margin-bottom: 6px; }
+    .settings-block input, .settings-block .info-text {
+      width: 100%; background: #1e1e26; border: 1px solid #2c2c34;
+      border-radius: 10px; padding: 10px; color: #e1e1e1; font-size: 14px; outline: none;
+    }
+    .avatar-upload { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .avatar-upload img {
+      width: 56px; height: 56px; border-radius: 50%; object-fit: cover; background: #2a2a35;
+    }
+    .about-section {
+      margin-top: 24px; border-top: 1px solid #2a2a30; padding-top: 18px;
+    }
+    .about-item { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+    .about-item span:last-child { color: #aaa; }
+    .btn-danger {
+      width: 100%; background: #2d1f2d; border: 1px solid #b71c1c;
+      color: #f7768e; border-radius: 12px; padding: 12px; font-size: 15px;
+      margin-top: 16px; cursor: pointer;
     }
   </style>
 </head>
@@ -228,10 +241,10 @@
       </div>
     </div>
 
-    <!-- Сообщения -->
+    <!-- Сообщения (чаты) -->
     <div id="chatsScreen" class="screen">
       <div id="chatListContainer">
-        <div style="font-size:18px; font-weight:bold; margin-bottom:14px;">💬 Чаты</div>
+        <div style="font-size:18px; font-weight:bold; margin-bottom:12px;">💬 Чаты</div>
         <div class="chat-list" id="chatList"></div>
       </div>
       <div id="chatRoomContainer" style="display:none; height:100%; flex-direction:column;">
@@ -253,13 +266,11 @@
       </div>
     </div>
 
-    <!-- Музыка (исправлен flex) -->
+    <!-- Музыка (без плейлистов) -->
     <div id="musicScreen" class="screen">
-      <div style="font-size:18px; font-weight:bold; margin-bottom:14px; flex-shrink:0;">🎵 Музыка</div>
+      <div style="font-size:18px; font-weight:bold; margin-bottom:10px; flex-shrink:0;">🎵 Музыка</div>
       <div class="music-actions" style="flex-shrink:0;">
-        <button id="addTrackBtn">Добавить трек</button>
-        <button id="createPlaylistBtn">Создать плейлист</button>
-        <button id="showPlaylistsBtn">Список плейлистов</button>
+        <button id="uploadTrackBtn">Выложить трек</button>
       </div>
       <div class="music-content" id="musicContent">
         <div class="empty-feed">🎧 Загрузка треков...</div>
@@ -275,7 +286,7 @@
 
     <!-- Настройки -->
     <div id="settingsScreen" class="screen">
-      <div style="font-size:18px; font-weight:bold; margin-bottom:14px;">⚙️ Настройки</div>
+      <div style="font-size:18px; font-weight:bold; margin-bottom:12px;">⚙️ Настройки</div>
       <div class="settings-block"><label>Ваш UIN</label><div class="info-text" id="uinDisplay">------</div></div>
       <div class="settings-block"><label>Никнейм</label><input type="text" id="nicknameInput"></div>
       <div class="settings-block"><label>Аватар</label>
@@ -305,6 +316,20 @@
   </div>
 </div>
 
+<!-- Модальное окно: Выложить трек -->
+<div class="modal-overlay" id="uploadTrackModal">
+  <div class="modal">
+    <button class="close-btn" id="closeUploadTrackModal">✕</button>
+    <h3>Выложить трек</h3>
+    <button id="selectTrackFileBtn">Загрузить трек</button>
+    <div class="hint">Только OGG</div>
+    <a href="https://convertio.co/ru/mp3-ogg/" target="_blank" rel="noopener">
+      <button class="secondary-btn">Перевести MP3 в OGG</button>
+    </a>
+  </div>
+</div>
+
+<!-- Модальное окно: Профиль пользователя -->
 <div class="modal-overlay" id="profileModal">
   <div class="modal">
     <button class="close-btn" id="closeProfileModal">✕</button>
@@ -315,6 +340,7 @@
   </div>
 </div>
 
+<!-- Модальное окно: Авторизация -->
 <div class="modal-overlay" id="authModal">
   <div class="modal">
     <h3 id="authTitle">Вход</h3>
@@ -351,6 +377,18 @@ const chatMessages = document.getElementById('chatMessages');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 const backToChatList = document.getElementById('backToChatList');
+const uploadTrackBtn = document.getElementById('uploadTrackBtn');
+const uploadTrackModal = document.getElementById('uploadTrackModal');
+const closeUploadTrackModal = document.getElementById('closeUploadTrackModal');
+const selectTrackFileBtn = document.getElementById('selectTrackFileBtn');
+const musicContent = document.getElementById('musicContent');
+const playPauseBtn = document.getElementById('playPauseBtn');
+const rewindBack = document.getElementById('rewindBack');
+const rewindForward = document.getElementById('rewindForward');
+const avatarPreview = document.getElementById('avatarPreview');
+const avatarInput = document.getElementById('avatarInput');
+const uploadAvatarBtn = document.getElementById('uploadAvatarBtn');
+const logoutBtn = document.getElementById('logoutBtn');
 
 // ========== НАВИГАЦИЯ ==========
 navButtons.forEach(btn => {
@@ -366,7 +404,7 @@ navButtons.forEach(btn => {
   });
 });
 
-// ========== АВТОРИЗАЦИЯ ==========
+// ========== АВТОРИЗАЦИЯ (не меняем) ==========
 let authMode = 'login';
 const authModal = document.getElementById('authModal');
 const authTitle = document.getElementById('authTitle');
@@ -454,9 +492,7 @@ function loadFeed() {
   if (!currentUser) return;
   socket.emit('getFeed');
 }
-let feedLoadedOnce = false;
 socket.on('feed', messages => {
-  feedLoadedOnce = true;
   if (!messages.length) {
     feedPlaceholder.style.display = 'block';
     return;
@@ -503,19 +539,8 @@ socket.on('searchResults', results => {
   }).join('');
   searchResults.classList.add('visible');
 });
-searchResults.addEventListener('click', e => {
-  const item = e.target.closest('.search-item');
-  if (!item) return;
-  if (item.dataset.type === 'user') {
-    showProfile(item.dataset.uin, item.dataset.nick);
-  } else {
-    openRoom(item.dataset.id, item.dataset.name, item.dataset.type);
-  }
-  searchInput.value = '';
-  searchResults.classList.remove('visible');
-});
 
-// ========== ПРОФИЛЬ ==========
+// ========== ПРОФИЛЬ (из поиска / чата) ==========
 function showProfile(uin, nick) {
   document.getElementById('profileName').textContent = nick;
   document.getElementById('profileUin').textContent = 'UIN: ' + uin;
@@ -575,12 +600,13 @@ function openRoom(roomId, name, type) {
   socket.emit('joinRoom', roomId);
 }
 
-backToChatList.addEventListener('click', () => {
+backToChatList.onclick = () => {
   chatRoomContainer.style.display = 'none';
   chatListContainer.style.display = 'block';
   currentRoomId = null;
-});
+};
 
+// ========== ЧАТ: СООБЩЕНИЯ ==========
 socket.on('roomInfo', ({ messages, participants }) => {
   messages.forEach(msg => appendMessage(msg));
   chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -591,7 +617,6 @@ socket.on('roomInfo', ({ messages, participants }) => {
     }
   }
 });
-
 socket.on('newMessage', msg => {
   if (msg.userId === currentUser?.uin) return;
   appendMessage(msg);
@@ -631,14 +656,11 @@ function showMessageMenu(e, msgId, oldText) {
   menu.className = 'msg-menu';
   menu.style.left = e.offsetX + 'px';
   menu.style.top = e.offsetY + 'px';
-  menu.innerHTML = `
-    <button id="editMsg">Редактировать</button>
-    <button id="deleteMsg">Удалить</button>
-  `;
+  menu.innerHTML = `<button id="editMsg">Редактировать</button><button id="deleteMsg">Удалить</button>`;
   e.target.closest('.message').appendChild(menu);
   menu.style.display = 'block';
   menu.querySelector('#editMsg').onclick = () => {
-    const newText = prompt('Редактировать сообщение:', oldText);
+    const newText = prompt('Редактировать:', oldText);
     if (newText) socket.emit('editMessage', { roomId: currentRoomId, messageId: msgId, newText });
     menu.remove();
   };
@@ -649,21 +671,20 @@ function showMessageMenu(e, msgId, oldText) {
   setTimeout(() => menu.remove(), 5000);
 }
 
-sendBtn.addEventListener('click', () => {
+sendBtn.onclick = () => {
   const text = messageInput.value.trim();
   if (!text || !currentRoomId) return;
   socket.emit('chatMessage', { roomId: currentRoomId, text });
   messageInput.value = '';
-});
+};
 
-// ========== МУЗЫКА ==========
+// ========== МУЗЫКА (новая логика) ==========
 let currentTrack = null;
 
 async function loadAllTracks() {
   try {
     const res = await fetch('/api/music');
     const tracks = await res.json();
-    const musicContent = document.getElementById('musicContent');
     if (!tracks.length) {
       musicContent.innerHTML = '<div class="empty-feed">🎵 Нет загруженных треков</div>';
       return;
@@ -672,12 +693,21 @@ async function loadAllTracks() {
       tracks.map(t => `<div class="track-item" data-url="${t.url}" data-title="${escapeHtml(t.title)}">🎵 ${escapeHtml(t.title)}</div>`).join('') +
       '</div>';
   } catch (err) {
-    document.getElementById('musicContent').innerHTML = '<div class="empty-feed">⚠ Ошибка загрузки треков</div>';
+    musicContent.innerHTML = '<div class="empty-feed">⚠ Ошибка загрузки треков</div>';
     console.error(err);
   }
 }
 
-document.getElementById('addTrackBtn').addEventListener('click', () => {
+// Открыть модальное окно "Выложить трек"
+uploadTrackBtn.addEventListener('click', () => {
+  uploadTrackModal.classList.add('visible');
+});
+closeUploadTrackModal.addEventListener('click', () => {
+  uploadTrackModal.classList.remove('visible');
+});
+
+// Кнопка "Загрузить трек" в модалке — открываем выбор файла
+selectTrackFileBtn.addEventListener('click', () => {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.ogg';
@@ -689,12 +719,14 @@ document.getElementById('addTrackBtn').addEventListener('click', () => {
     form.append('title', file.name.replace(/\.ogg$/, ''));
     form.append('userId', currentUser.uin);
     await fetch('/upload/music', { method: 'POST', body: form });
+    uploadTrackModal.classList.remove('visible');
     loadAllTracks();
   };
   input.click();
 });
 
-document.getElementById('musicContent').addEventListener('click', e => {
+// Воспроизведение по клику на трек
+musicContent.addEventListener('click', e => {
   const item = e.target.closest('.track-item');
   if (!item) return;
   const url = item.dataset.url;
@@ -702,26 +734,29 @@ document.getElementById('musicContent').addEventListener('click', e => {
   if (currentTrack) currentTrack.pause();
   currentTrack = new Audio(url);
   currentTrack.play();
-  document.getElementById('playPauseBtn').textContent = '⏸';
+  playPauseBtn.textContent = '⏸';
 });
 
-document.getElementById('playPauseBtn').addEventListener('click', () => {
+playPauseBtn.addEventListener('click', () => {
   if (!currentTrack) return;
-  if (currentTrack.paused) { currentTrack.play(); document.getElementById('playPauseBtn').textContent = '⏸'; }
-  else { currentTrack.pause(); document.getElementById('playPauseBtn').textContent = '▶️'; }
+  if (currentTrack.paused) {
+    currentTrack.play();
+    playPauseBtn.textContent = '⏸';
+  } else {
+    currentTrack.pause();
+    playPauseBtn.textContent = '▶️';
+  }
 });
-document.getElementById('rewindBack').addEventListener('click', () => { if (currentTrack) currentTrack.currentTime -= 5; });
-document.getElementById('rewindForward').addEventListener('click', () => { if (currentTrack) currentTrack.currentTime += 5; });
+rewindBack.addEventListener('click', () => { if (currentTrack) currentTrack.currentTime -= 5; });
+rewindForward.addEventListener('click', () => { if (currentTrack) currentTrack.currentTime += 5; });
 
 // ========== НАСТРОЙКИ ==========
-document.getElementById('uploadAvatarBtn').addEventListener('click', () => {
-  document.getElementById('avatarInput').click();
-});
-document.getElementById('avatarInput').addEventListener('change', async e => {
+uploadAvatarBtn.addEventListener('click', () => avatarInput.click());
+avatarInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file || !currentUser) return;
   const reader = new FileReader();
-  reader.onload = ev => document.getElementById('avatarPreview').src = ev.target.result;
+  reader.onload = ev => avatarPreview.src = ev.target.result;
   reader.readAsDataURL(file);
   const form = new FormData();
   form.append('avatar', file);
@@ -732,8 +767,7 @@ document.getElementById('avatarInput').addEventListener('change', async e => {
     console.error('Ошибка загрузки аватара:', err);
   }
 });
-
-document.getElementById('logoutBtn').addEventListener('click', () => {
+logoutBtn.addEventListener('click', () => {
   localStorage.removeItem('k8_token');
   location.reload();
 });
