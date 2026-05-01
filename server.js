@@ -1,4 +1,4 @@
-// server.js — Криста 8 (поиск исправлен)
+// server.js — Криста 8 (исправлены приватные чаты и поиск)
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -264,7 +264,7 @@ io.on('connection', (socket) => {
       const userId = socket.userId;
       if (!name) return;
       const roomId = generateNanoId(7);
-      const room = await Room.create({
+      await Room.create({
         id: roomId,
         name,
         type: type || 'chat',
@@ -299,52 +299,90 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('userLeft', userId);
   });
 
-  // ========== ИСПРАВЛЕННЫЙ ПОИСК ==========
+  // ========== ПОИСК (исправлен) ==========
   socket.on('globalSearch', async ({ query }) => {
     if (!query) return;
-
-    // Собираем результаты в один массив
     let results = [];
 
-    // Точное совпадение ID комнаты
     const roomById = await Room.findOne({ id: query }).lean();
-    if (roomById) {
-      results.push({ type: roomById.type, id: roomById.id, name: roomById.name });
-    }
+    if (roomById) results.push({ type: roomById.type, id: roomById.id, name: roomById.name });
 
-    // Точное совпадение UIN
     const userByUin = await User.findOne({ uin: query }).lean();
-    if (userByUin) {
-      results.push({ type: 'user', uin: userByUin.uin, nick: userByUin.nick, avatar: userByUin.avatar });
-    }
+    if (userByUin) results.push({ type: 'user', uin: userByUin.uin, nick: userByUin.nick, avatar: userByUin.avatar });
 
-    // Нечёткий поиск по нику (если ещё не нашли точно)
     if (!userByUin) {
       const usersByNick = await User.find({ nick: { $regex: query, $options: 'i' } }).limit(5).lean();
       results.push(...usersByNick.map(u => ({ type: 'user', uin: u.uin, nick: u.nick, avatar: u.avatar })));
     }
 
-    // Нечёткий поиск по названию комнат
     if (!roomById) {
       const roomsByName = await Room.find({ name: { $regex: query, $options: 'i' } }).limit(5).lean();
       results.push(...roomsByName.map(r => ({ type: r.type, id: r.id, name: r.name })));
     }
 
-    // Убираем возможные дубликаты (по id/uin)
-    const uniqueResults = [];
+    // Убираем дубликаты
+    const unique = [];
     const seen = new Set();
     for (const item of results) {
       const key = item.type === 'user' ? item.uin : item.id;
       if (!seen.has(key)) {
         seen.add(key);
-        uniqueResults.push(item);
+        unique.push(item);
       }
     }
-
-    // Всегда отправляем searchResults
-    socket.emit('searchResults', uniqueResults.slice(0, 10));
+    socket.emit('searchResults', unique.slice(0, 10));
   });
 
+  // ========== ПРИВАТНЫЙ ЧАТ (исправлен) ==========
+  socket.on('startPrivateChat', async (targetUin) => {
+    try {
+      const userId = socket.userId;
+      const target = await User.findOne({ uin: targetUin });
+      if (!target) return socket.emit('systemMessage', { text: 'Пользователь не найден' });
+
+      // Добавляем в контакты
+      await User.findOneAndUpdate({ uin: userId }, { $addToSet: { contacts: targetUin } });
+      await User.findOneAndUpdate({ uin: targetUin }, { $addToSet: { contacts: userId } });
+
+      const ids = [userId, targetUin].sort();
+      const roomId = 'private_' + ids[0] + '_' + ids[1];
+      let room = await Room.findOne({ id: roomId });
+      if (!room) {
+        room = await Room.create({
+          id: roomId,
+          name: `${userId} / ${targetUin}`,
+          type: 'chat',
+          creator: 'system',
+          participants: [userId, targetUin],
+          messages: []
+        });
+      }
+
+      // Присоединяем сокет к комнате
+      socket.join(roomId);
+      // Отправляем клиенту команду открыть комнату
+      socket.emit('privateRoomReady', { roomId, targetNick: target.nick });
+
+      // Отправляем roomInfo для загрузки сообщений
+      const messages = room.messages.slice(-100);
+      socket.emit('roomInfo', {
+        roomId,
+        name: room.name,
+        type: room.type,
+        creator: room.creator,
+        participants: [
+          { uin: userId, nick: (await User.findOne({ uin: userId }))?.nick || 'Вы', online: true },
+          { uin: targetUin, nick: target.nick, online: isUserOnline(targetUin), avatar: target.avatar }
+        ],
+        messages
+      });
+
+    } catch (e) {
+      socket.emit('systemMessage', { text: 'Ошибка создания приватного чата' });
+    }
+  });
+
+  // ========== ВХОД В КОМНАТУ ==========
   socket.on('joinRoom', async (roomId) => {
     const room = await Room.findOne({ id: roomId });
     if (!room) return;
@@ -382,42 +420,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('startPrivateChat', async (targetUin) => {
-    const userId = socket.userId;
-    const target = await User.findOne({ uin: targetUin });
-    if (!target) return socket.emit('systemMessage', { text: 'Пользователь не найден' });
-
-    await User.findOneAndUpdate({ uin: userId }, { $addToSet: { contacts: targetUin } });
-    await User.findOneAndUpdate({ uin: targetUin }, { $addToSet: { contacts: userId } });
-
-    const ids = [userId, targetUin].sort();
-    const roomId = 'private_' + ids[0] + '_' + ids[1];
-    let room = await Room.findOne({ id: roomId });
-    if (!room) {
-      room = await Room.create({
-        id: roomId,
-        name: `Личный: ${userId} / ${targetUin}`,
-        type: 'chat',
-        creator: 'system',
-        participants: [userId, targetUin],
-        messages: []
-      });
-    }
-    socket.emit('privateRoomReady', { roomId, targetNick: target.nick });
-    // joinRoom вызывается после этого на клиенте
-  });
-
-  async function joinRoom(socket, roomId) {
-    const room = await Room.findOne({ id: roomId });
-    if (!room) return;
-    const userId = socket.userId;
-    if (!room.participants.includes(userId)) {
-      room.participants.push(userId);
-      await room.save();
-    }
-    socket.join(roomId);
-  }
-
   socket.on('getMainList', async () => {
     const userId = socket.userId;
     const user = await User.findOne({ uin: userId });
@@ -433,6 +435,7 @@ io.on('connection', (socket) => {
         lastSeen: p?.lastSeen
       };
     }));
+
     const onlineContacts = contacts.filter(c => c.online);
     const offlineContacts = contacts.filter(c => !c.online);
 
@@ -452,11 +455,149 @@ io.on('connection', (socket) => {
     socket.emit('mainList', { onlineContacts, offlineContacts, rooms: roomList });
   });
 
-  // ... (остальные обработчики остаются без изменений, включая chatMessage, editMessage, deleteMessage, blockUser, и т.д.)
-  // Вставьте сюда весь остальной код из предыдущего server.js (chatMessage, editMessage, deleteMessage, blockUser, unblockUser, getUserProfile, getFeed, deleteAccount, disconnect)
-  // Они точно такие же, как в предыдущем ответе.
-  // Для краткости я их не дублирую, но в реальном файле они должны быть здесь.
-  // Обязательно скопируйте их из предыдущего полного server.js.
+  socket.on('chatMessage', async (data) => {
+    const { roomId, text, fileUrl } = data;
+    const userId = socket.userId;
+    if (!userId || (!text && !fileUrl)) return;
+
+    const user = await User.findOne({ uin: userId });
+    const room = await Room.findOne({ id: roomId });
+    if (!user || !room) return;
+
+    if (room.type === 'channel' && !room.admins.includes(userId)) return;
+    if (roomId.startsWith('private_')) {
+      const ids = roomId.split('_').slice(1);
+      const otherId = ids.find(id => id !== userId);
+      if (otherId) {
+        const other = await User.findOne({ uin: otherId });
+        if (other && other.blockedUsers.includes(userId)) return;
+      }
+    }
+
+    const msg = {
+      createdAt: new Date(),
+      time: getCurrentTime(),
+      user: user.nick,
+      userId,
+      text: text || '',
+      fileUrl: fileUrl || '',
+      edited: false
+    };
+    room.messages.push(msg);
+    if (room.messages.length > 1000) room.messages = room.messages.slice(-1000);
+    await room.save();
+    io.to(roomId).emit('newMessage', room.messages[room.messages.length - 1].toObject());
+  });
+
+  socket.on('editMessage', async (data) => {
+    const { roomId, messageId, newText } = data;
+    const userId = socket.userId;
+    const room = await Room.findOne({ id: roomId });
+    if (!room) return;
+    const msg = room.messages.id(messageId);
+    if (!msg || msg.userId !== userId) return;
+    msg.text = newText;
+    msg.edited = true;
+    await room.save();
+    io.to(roomId).emit('messageEdited', { roomId, messageId, newText, edited: true });
+  });
+
+  socket.on('deleteMessage', async (data) => {
+    const { roomId, messageId } = data;
+    const userId = socket.userId;
+    const room = await Room.findOne({ id: roomId });
+    if (!room) return;
+    const msg = room.messages.id(messageId);
+    if (!msg || msg.userId !== userId) return;
+    msg.text = 'Сообщение удалено';
+    msg.fileUrl = '';
+    msg.edited = true;
+    await room.save();
+    io.to(roomId).emit('messageDeleted', { roomId, messageId });
+  });
+
+  socket.on('blockUser', async (targetUin) => {
+    const userId = socket.userId;
+    const user = await User.findOne({ uin: userId });
+    if (!user || user.blockedUsers.includes(targetUin)) return;
+    user.blockedUsers.push(targetUin);
+    await user.save();
+    socket.emit('userBlocked', targetUin);
+  });
+
+  socket.on('unblockUser', async (targetUin) => {
+    const userId = socket.userId;
+    const user = await User.findOne({ uin: userId });
+    if (!user) return;
+    user.blockedUsers = user.blockedUsers.filter(id => id !== targetUin);
+    await user.save();
+    socket.emit('userUnblocked', targetUin);
+  });
+
+  socket.on('getUserProfile', async (uin) => {
+    const user = await User.findOne({ uin });
+    if (user) {
+      socket.emit('userProfile', {
+        uin: user.uin,
+        nick: user.nick,
+        avatar: user.avatar,
+        description: user.description,
+        lastSeen: user.lastSeen
+      });
+    }
+  });
+
+  socket.on('getFeed', async () => {
+    const userId = socket.userId;
+    const rooms = await Room.find({ participants: userId });
+    let messages = [];
+    for (const room of rooms) {
+      const lastMsgs = room.messages.slice(-3);
+      for (const msg of lastMsgs) {
+        messages.push({
+          ...msg.toObject(),
+          roomId: room.id,
+          roomName: room.name,
+          roomType: room.type
+        });
+      }
+    }
+    messages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    socket.emit('feed', messages.slice(0, 50));
+  });
+
+  socket.on('deleteAccount', async (password) => {
+    const userId = socket.userId;
+    const user = await User.findOne({ uin: userId });
+    if (!user) return;
+
+    if (user.avatar) {
+      const avatarPath = path.join(__dirname, 'public/avatars', user.avatar);
+      if (fs.existsSync(avatarPath)) fs.unlinkSync(avatarPath);
+    }
+
+    await Room.updateMany(
+      { 'messages.userId': userId },
+      { $set: { 'messages.$[elem].user': 'Удалённый пользователь' } },
+      { arrayFilters: [{ 'elem.userId': userId }] }
+    );
+
+    await Room.updateMany(
+      { participants: userId },
+      { $pull: { participants: userId } }
+    );
+
+    await User.deleteOne({ uin: userId });
+    socket.emit('accountDeleted');
+    socket.disconnect();
+  });
+
+  socket.on('disconnect', async () => {
+    const userId = socket.userId;
+    if (userId) {
+      await User.findOneAndUpdate({ uin: userId }, { lastSeen: new Date() });
+    }
+  });
 });
 
 // ========== ЗАПУСК ==========
