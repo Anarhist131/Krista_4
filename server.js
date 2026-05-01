@@ -1,4 +1,4 @@
-// server.js — Криста 6 (без команд, с аватарками)
+// server.js — Криста 7 (добавлены музыкальные эндпоинты, убраны команды и TXT)
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -9,8 +9,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// ========== Папки ==========
-['public/avatars', 'public/files'].forEach(dir => {
+// ========== Папки для загрузок ==========
+['public/avatars', 'public/files', 'public/music'].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -19,7 +19,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const server = http.createServer(app);
 const io = new Server(server);
 
-// ========== MULTER ==========
+// ========== MULTER (три хранилища) ==========
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'public/avatars'),
   filename: (req, file, cb) => {
@@ -37,6 +37,27 @@ const fileStorage = multer.diskStorage({
   }
 });
 const uploadFile = multer({ storage: fileStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+
+const musicStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'public/music'),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    // Принимаем только .ogg, которые клиент уже пережал
+    const ext = '.ogg';
+    cb(null, uniqueSuffix + ext);
+  }
+});
+const uploadMusic = multer({
+  storage: musicStorage,
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'audio/ogg' || file.mimetype === 'application/ogg') {
+      cb(null, true);
+    } else {
+      cb(new Error('Только OGG-файлы'), false);
+    }
+  }
+});
 
 // ========== МОДЕЛИ ==========
 const profileSchema = new mongoose.Schema({
@@ -79,6 +100,16 @@ const counterSchema = new mongoose.Schema({
   chats8: { type: Number, default: 0 }
 });
 const Counter = mongoose.model('Counter', counterSchema);
+
+// Модель для метаданных треков
+const musicSchema = new mongoose.Schema({
+  id: { type: String, unique: true },      // уникальный ID трека
+  title: String,                           // название песни
+  userId: String,                          // кто загрузил
+  url: String,                             // путь к файлу относительно public
+  uploadedAt: { type: Date, default: Date.now }
+});
+const Music = mongoose.model('Music', musicSchema);
 
 // ========== ГЕНЕРАЦИЯ ID ==========
 function getCurrentYY() { return String(new Date().getFullYear()).slice(-2); }
@@ -160,7 +191,7 @@ function isUserOnline(userId) {
   return [...io.sockets.sockets.values()].some(s => s.userId === userId);
 }
 
-// ========== REST: загрузка файлов ==========
+// ========== REST ЗАГРУЗКИ (аватары, файлы, музыка) ==========
 app.post('/upload/avatar', uploadAvatar.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
   await Profile.findOneAndUpdate({ id: req.body.userId }, { avatar: req.file.filename });
@@ -172,7 +203,28 @@ app.post('/upload/file', uploadFile.single('file'), (req, res) => {
   res.json({ url: '/files/' + req.file.filename });
 });
 
-// ========== SOCKET.IO ==========
+// Загрузка музыки (только OGG)
+app.post('/upload/music', uploadMusic.single('music'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Файл не загружен' });
+    const title = req.body.title || req.file.originalname.replace(/\.ogg$/, '');
+    const userId = req.body.userId;
+    const id = crypto.randomBytes(8).toString('hex');   // короткий уникальный ID
+    const url = '/music/' + req.file.filename;
+    await Music.create({ id, title, userId, url });
+    res.json({ id, title, url });
+  } catch (e) {
+    res.status(500).json({ error: 'Не удалось сохранить трек' });
+  }
+});
+
+// Список треков (последние 200)
+app.get('/api/music', async (req, res) => {
+  const tracks = await Music.find({}).sort({ uploadedAt: -1 }).limit(200).lean();
+  res.json(tracks);
+});
+
+// ========== SOCKET.IO (без команд и TXT, всё как в Кристе 6) ==========
 io.on('connection', (socket) => {
   console.log('+ соединение:', socket.id);
 
@@ -427,7 +479,7 @@ io.on('connection', (socket) => {
 
 // ========== ЗАПУСК ==========
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/krista6';
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/krista7';
 
 mongoose.connect(MONGO_URI)
   .then(async () => {
@@ -444,7 +496,7 @@ mongoose.connect(MONGO_URI)
       console.log('Общий чат создан');
     }
     await Counter.findOneAndUpdate({ year: getCurrentYY() }, { $setOnInsert: { users: 0, chats9: 0, chats8: 0 } }, { upsert: true });
-    server.listen(PORT, () => console.log(`Криста 6 запущена на порту ${PORT}`));
+    server.listen(PORT, () => console.log(`Криста 7 запущена на порту ${PORT}`));
   })
   .catch(err => {
     console.error('Ошибка MongoDB:', err);
