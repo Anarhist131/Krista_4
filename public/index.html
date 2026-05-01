@@ -81,7 +81,9 @@
     }
     .back-btn { background: none; border: none; color: #6c5ce7; font-size: 20px; cursor: pointer; }
     .chat-room-messages {
-      flex: 1; overflow-y: auto; padding: 12px;
+      height: 300px;            /* фиксированная высота */
+      overflow-y: auto;
+      padding: 12px;
       display: flex; flex-direction: column; gap: 8px;
       background: #0f0f15;
     }
@@ -103,6 +105,7 @@
     }
     .chat-room-input {
       padding: 8px; display: flex; gap: 8px; background: #1a1a22; border-top: 1px solid #2c2c30;
+      margin-top: auto;           /* прижимаем строку ввода книзу */
     }
     .chat-room-input input {
       flex: 1; background: #25252e; border: none; border-radius: 20px; padding: 10px 14px;
@@ -546,28 +549,48 @@ socket.on('roomCreated', async (data) => {
     const form = new FormData();
     form.append('roomAvatar', roomAvatarFile);
     form.append('roomId', data.roomId);
-    try {
-      await fetch('/upload/roomAvatar', { method: 'POST', body: form });
-    } catch (e) {}
+    try { await fetch('/upload/roomAvatar', { method: 'POST', body: form }); } catch (e) {}
     roomAvatarFile = null;
   }
   loadChatList();
   loadFeed();
 });
 
-// ========== ЛЕНТА ==========
+// ========== ЛЕНТА (кликабельная) ==========
 function loadFeed() { if (currentUser) socket.emit('getFeed'); }
 socket.on('feed', messages => {
   if (!messages.length) { feedPlaceholder.style.display = 'block'; return; }
   feedPlaceholder.style.display = 'none';
   let html = '';
   messages.forEach(msg => {
+    // Используем roomId и, если есть, идентификатор чата/юзера
+    const roomId = msg.roomId;
     const roomName = msg.roomName || 'Чат';
-    html += `<div class="chat-item"><div class="avatar">${msg.user?.[0] || '?'}</div>
-      <div class="chat-info"><div class="name">${escapeHtml(msg.user)} <span style="font-size:12px;color:#888;">в ${escapeHtml(roomName)}</span></div>
-      <div class="last-msg">${escapeHtml(msg.text)}</div></div></div>`;
+    html += `<div class="chat-item feed-item" data-room="${roomId}" data-name="${escapeHtml(roomName)}" data-type="${msg.roomType || 'chat'}">
+      <div class="avatar">${msg.user?.[0] || '?'}</div>
+      <div class="chat-info">
+        <div class="name">${escapeHtml(msg.user)} <span style="font-size:12px;color:#888;">в ${escapeHtml(roomName)}</span></div>
+        <div class="last-msg">${escapeHtml(msg.text)}</div>
+      </div>
+    </div>`;
   });
   feedContent.innerHTML = html;
+  // Добавим обработчики клика для элементов ленты
+  document.querySelectorAll('.feed-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const roomId = item.dataset.room;
+      const name = item.dataset.name;
+      const type = item.dataset.type;
+      if (roomId.startsWith('private_')) {
+        // Если это приватный чат, открываем его через openRoom (или можно startPrivateChat, но нужен UIN собеседника, что сложнее)
+        openRoom(roomId, name, 'chat');
+      } else {
+        openRoom(roomId, name, type);
+      }
+      // Автоматически переключаемся на вкладку "Сообщения"?
+      // Можно переключить, но не обязательно.
+    });
+  });
 });
 
 // ========== ПОИСК ==========
@@ -824,4 +847,4 @@ function escapeHtml(text) {
 }
 </script>
 </body>
-</html>
+  </html>
