@@ -1,10 +1,8 @@
-// sw.js — Service Worker для Кристы 6
-const CACHE_NAME = 'krista-v6';
+// sw.js — Service Worker для Кристы 8
+const CACHE_NAME = 'krista-v8';
 const ASSETS = [
   '/',
   '/index.html',
-  '/style.css',
-  '/client.js',
   '/manifest.json',
   '/screen/icon1.png',
   '/screen/icon2.png'
@@ -12,10 +10,12 @@ const ASSETS = [
 
 // Установка: кешируем основные файлы
 self.addEventListener('install', (event) => {
-  console.log('[SW] Установка');
+  console.log('[SW] Установка Кристы 8');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS).catch(console.warn);
+      return cache.addAll(ASSETS).catch(err => {
+        console.warn('[SW] Не удалось закешировать некоторые ресурсы:', err);
+      });
     })
   );
   self.skipWaiting();
@@ -23,7 +23,7 @@ self.addEventListener('install', (event) => {
 
 // Активация: удаляем старые кеши
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Активация');
+  console.log('[SW] Активация Кристы 8');
   event.waitUntil(
     caches.keys().then((names) => {
       return Promise.all(
@@ -34,9 +34,15 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Запросы: кеш, потом сеть
+// Запросы: кеш, потом сеть (для статики), сетевая стратегия для API и сокетов
 self.addEventListener('fetch', (event) => {
-  if (event.request.url.includes('/socket.io/')) return;
+  // Не кешируем запросы к socket.io и API
+  if (event.request.url.includes('/socket.io/') || 
+      event.request.url.includes('/api/') ||
+      event.request.url.includes('/upload/')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const networked = fetch(event.request)
@@ -53,32 +59,9 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Фоновая синхронизация
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-messages') {
-    event.waitUntil(
-      fetch('/')
-        .then(() => console.log('[SW] Фоновая синхронизация выполнена'))
-        .catch(err => console.warn('[SW] Ошибка синхронизации:', err))
-    );
-  }
-});
-
-// Периодическая синхронизация
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'check-updates') {
-    event.waitUntil(
-      fetch('/')
-        .then(res => res.text())
-        .then(() => console.log('[SW] Периодическая синхронизация успешна'))
-        .catch(err => console.warn('[SW] Ошибка периодической синхронизации:', err))
-    );
-  }
-});
-
 // Push-уведомления
 self.addEventListener('push', (event) => {
-  let data = { title: 'Криста 6', body: 'Новое сообщение' };
+  let data = { title: 'Криста 8', body: 'Новое сообщение' };
   if (event.data) {
     try {
       data = event.data.json();
