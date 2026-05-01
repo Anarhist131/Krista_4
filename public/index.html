@@ -104,6 +104,7 @@
     .input-area {
       background: #1a1a1a; padding: 8px 12px; display: flex; gap: 8px;
       align-items: center; border-top: 1px solid #2c2c2c;
+      padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)); /* защита от хотбара */
     }
     .input-area input {
       flex: 1; background: #252525; border: 1px solid #333;
@@ -149,19 +150,35 @@
       margin-top: 10px; color: #000; font-weight: bold; cursor: pointer; width: 100%;
     }
     .modal .danger { background: #b71c1c; color: #fff; }
+    /* Крестик – как круглая иконка в шапке */
     .modal-close-x {
       position: absolute;
-      top: 12px; right: 16px;
-      background: none;
+      top: 8px; right: 10px;
+      width: 28px; height: 28px;
+      background: #2a2a2a;
+      border-radius: 50%;
       border: none;
-      color: #aaa;
-      font-size: 20px;
+      color: #ccc;
+      font-size: 14px;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       padding: 0;
-      width: auto;
-      line-height: 1;
     }
-    .modal-close-x:hover { color: #fff; }
+    .modal-close-x:hover { background: #7aa2f7; color: #000; }
+    /* Стилизованные поля ввода для всех модалок */
+    .modal-input {
+      background: #252525;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 10px;
+      color: #e1e1e1;
+      font-size: 14px;
+      outline: none;
+      width: 100%;
+    }
+    .modal-input:focus { border-color: #7aa2f7; }
     .player-modal { max-width: 400px; max-height: 80vh; overflow-y: auto; }
     .player-modal .search-box { margin-bottom: 12px; }
     .player-modal input { width: 100%; padding: 10px; border-radius: 20px; background: #252525; border: 1px solid #333; color: #e1e1e1; }
@@ -228,7 +245,7 @@
     <div class="modal">
       <button class="modal-close-x" onclick="document.getElementById('searchModal').classList.add('hidden')">✕</button>
       <h3>Поиск</h3>
-      <input type="text" id="searchInputField" placeholder="Введите ID чата или пользователя">
+      <input class="modal-input" type="text" id="searchInputField" placeholder="Введите ID чата или пользователя">
       <button id="confirmSearch">Найти</button>
     </div>
   </div>
@@ -238,7 +255,7 @@
     <div class="modal">
       <button class="modal-close-x" onclick="document.getElementById('createRoomModal').classList.add('hidden')">✕</button>
       <h3 id="createRoomTitle">Создать чат</h3>
-      <input type="text" id="newRoomName" placeholder="Название">
+      <input class="modal-input" type="text" id="newRoomName" placeholder="Название">
       <button id="createChatSubmit">Создать чат</button>
       <button id="createChannelSubmit">Создать канал</button>
     </div>
@@ -252,17 +269,17 @@
       <div class="field"><label>Ваш ID: <span id="settingsUserId"></span></label></div>
       <div class="field">
         <label>Никнейм</label>
-        <input type="text" id="setNick">
+        <input class="modal-input" type="text" id="setNick">
         <div class="hint">Отображается в чатах и контактах</div>
       </div>
       <div class="field">
         <label>Описание</label>
-        <input type="text" id="setDesc">
+        <input class="modal-input" type="text" id="setDesc">
         <div class="hint">Текст под вашим именем в профиле</div>
       </div>
       <div class="field">
         <label>Аватар</label>
-        <input type="file" id="setAvatar" accept="image/*">
+        <input class="modal-input" type="file" id="setAvatar" accept="image/*">
         <div class="hint">Изображение размером до 2 МБ</div>
       </div>
       <button id="saveSettings">Сохранить</button>
@@ -276,7 +293,7 @@
       <button class="modal-close-x" onclick="document.getElementById('playerModal').classList.add('hidden')">✕</button>
       <h3>🎵 Музыкальный плеер</h3>
       <div class="search-box">
-        <input type="text" id="trackSearch" placeholder="Поиск песен...">
+        <input class="modal-input" type="text" id="trackSearch" placeholder="Поиск песен...">
       </div>
       <div class="track-list" id="trackList"></div>
       <div class="controls">
@@ -289,7 +306,7 @@
       <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="0.8">
       <div class="upload-section">
         <h4>Загрузить свой трек</h4>
-        <input type="file" id="musicFileInput" accept="audio/mp3,audio/aac,audio/wav,audio/mpeg">
+        <input class="modal-input" type="file" id="musicFileInput" accept="audio/mp3,audio/aac,audio/wav,audio/mpeg">
         <button id="uploadMusicBtn">Загрузить трек</button>
         <div class="hint">MP3/AAC/WAV будут пережаты в OGG</div>
         <div id="conversionStatus" style="font-size:12px; color:#aaa; margin-top:6px;"></div>
@@ -301,10 +318,10 @@
   <div id="authModal" class="modal-overlay">
     <div class="modal">
       <h3 id="authTitle">Вход</h3>
-      <input type="text" id="authLogin" placeholder="Ваш ID">
-      <input type="password" id="authPassword" placeholder="Пароль">
+      <input class="modal-input" type="text" id="authLogin" placeholder="Ваш ID">
+      <input class="modal-input" type="password" id="authPassword" placeholder="Пароль">
       <div id="registerNickField" class="hidden">
-        <input type="text" id="authNick" placeholder="Никнейм">
+        <input class="modal-input" type="text" id="authNick" placeholder="Никнейм">
       </div>
       <button id="authSubmitBtn">Войти</button>
       <button id="toggleAuthMode">Регистрация</button>
@@ -471,7 +488,6 @@ socket.on('mainList', (data) => {
 
 function renderContactList() {
   let html = '';
-  // Общий чат убран, поэтому не выводим general
   if (mainListData.rooms.length) {
     html += '<div class="list-category">Чаты и каналы</div>';
     mainListData.rooms.forEach(r => {
@@ -731,8 +747,7 @@ async function loadTrackList(query = '') {
     let tracks = await res.json();
     if (query) tracks = tracks.filter(t => t.title.toLowerCase().includes(query.toLowerCase()));
     playlist = tracks;
-    renderTrackList(tracks.slice(0, 10)); // показываем первые 10
-    // Остальные можно подгрузить скроллом, но для простоты ограничимся 10
+    renderTrackList(tracks.slice(0, 10));
   } catch(e) {
     console.error('Ошибка загрузки треков:', e);
   }
@@ -846,7 +861,6 @@ document.getElementById('volumeSlider').addEventListener('input', (e) => {
   audioElement.volume = e.target.value;
 });
 
-// Загрузка и конвертация трека
 let ffmpeg = null;
 const loadFFmpeg = async () => {
   if (ffmpeg) return ffmpeg;
@@ -930,4 +944,4 @@ socket.on('roomDeleted', () => refreshMainList());
 if (savedToken) socket.emit('loginByToken', savedToken);
 </script>
 </body>
-  </html>
+</html>
