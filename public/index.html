@@ -36,6 +36,15 @@
       display: none; padding: 16px 14px 90px; min-height: 100%;
     }
     .screen.active { display: block; }
+    /* Экран музыки должен быть гибким, чтобы панель управления прилипала внизу */
+    #musicScreen.screen {
+      padding-bottom: 0;
+      display: none;
+      flex-direction: column;
+    }
+    #musicScreen.screen.active {
+      display: flex;
+    }
 
     .bottom-nav {
       height: 70px; background: #16161b; border-top: 1px solid #2a2a30;
@@ -68,7 +77,6 @@
       margin-top: 20px;
     }
 
-    /* Чат лист */
     .chat-list .chat-item {
       display: flex; align-items: center; padding: 12px;
       border-bottom: 1px solid #1e1e26; gap: 12px; cursor: pointer;
@@ -83,7 +91,6 @@
     .chat-info .name { font-size: 15px; font-weight: 500; }
     .chat-info .last-msg { font-size: 12px; color: #888; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* Экран чата */
     .chat-room { display: flex; flex-direction: column; height: 100%; }
     .chat-room-header {
       background: #1a1a22; padding: 10px 14px; display: flex; align-items: center; gap: 10px;
@@ -122,7 +129,6 @@
       color: #e1e1e1; outline: none;
     }
 
-    /* Музыка */
     .music-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
     .music-actions button {
       flex: 1; min-width: 100px; background: #1e1e26; border: 1px solid #2c2c34;
@@ -148,7 +154,6 @@
     }
     .ctrl-btn.play { background: #6c5ce7; }
 
-    /* Настройки */
     .settings-block { margin-bottom: 24px; }
     .settings-block label { display: block; font-size: 13px; color: #aaa; margin-bottom: 6px; }
     .settings-block input, .settings-block .info-text {
@@ -170,7 +175,6 @@
       margin-top: 20px; cursor: pointer;
     }
 
-    /* Модалки */
     .modal-overlay {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.8); display: none; align-items: center;
@@ -226,12 +230,10 @@
 
     <!-- Сообщения -->
     <div id="chatsScreen" class="screen">
-      <!-- Список чатов -->
       <div id="chatListContainer">
         <div style="font-size:18px; font-weight:bold; margin-bottom:14px;">💬 Чаты</div>
         <div class="chat-list" id="chatList"></div>
       </div>
-      <!-- Комната чата (скрыто) -->
       <div id="chatRoomContainer" style="display:none; height:100%; flex-direction:column;">
         <div class="chat-room">
           <div class="chat-room-header">
@@ -251,16 +253,18 @@
       </div>
     </div>
 
-    <!-- Музыка -->
-    <div id="musicScreen" class="screen" style="display:none; flex-direction:column; padding-bottom:0;">
-      <div style="font-size:18px; font-weight:bold; margin-bottom:14px;">🎵 Музыка</div>
-      <div class="music-actions">
+    <!-- Музыка (исправлен flex) -->
+    <div id="musicScreen" class="screen">
+      <div style="font-size:18px; font-weight:bold; margin-bottom:14px; flex-shrink:0;">🎵 Музыка</div>
+      <div class="music-actions" style="flex-shrink:0;">
         <button id="addTrackBtn">Добавить трек</button>
         <button id="createPlaylistBtn">Создать плейлист</button>
         <button id="showPlaylistsBtn">Список плейлистов</button>
       </div>
-      <div class="music-content" id="musicContent"></div>
-      <div class="music-controls">
+      <div class="music-content" id="musicContent">
+        <div class="empty-feed">🎧 Загрузка треков...</div>
+      </div>
+      <div class="music-controls" style="flex-shrink:0;">
         <button class="ctrl-btn" id="rewindBack">⏪</button>
         <button class="ctrl-btn" id="prevTrack">⏮</button>
         <button class="ctrl-btn play" id="playPauseBtn">▶️</button>
@@ -276,7 +280,7 @@
       <div class="settings-block"><label>Никнейм</label><input type="text" id="nicknameInput"></div>
       <div class="settings-block"><label>Аватар</label>
         <div class="avatar-upload">
-          <img id="avatarPreview" src="">
+          <img id="avatarPreview" src="" alt="Аватар">
           <input type="file" id="avatarInput" accept="image/*" hidden>
           <button id="uploadAvatarBtn" class="icon-circle" style="width:auto; border-radius:10px; padding:0 12px;">Загрузить</button>
         </div>
@@ -301,7 +305,6 @@
   </div>
 </div>
 
-<!-- Модальное окно профиля -->
 <div class="modal-overlay" id="profileModal">
   <div class="modal">
     <button class="close-btn" id="closeProfileModal">✕</button>
@@ -312,7 +315,6 @@
   </div>
 </div>
 
-<!-- Модальное окно авторизации -->
 <div class="modal-overlay" id="authModal">
   <div class="modal">
     <h3 id="authTitle">Вход</h3>
@@ -331,8 +333,6 @@
 const socket = io();
 let currentUser = null;
 let currentRoomId = null;
-let roomsCache = {}; // roomId -> {name, type, ...}
-let contacts = [];
 
 // ========== DOM ЭЛЕМЕНТЫ ==========
 const screens = document.querySelectorAll('.screen');
@@ -441,12 +441,22 @@ socket.on('tokenLoginResult', res => {
   }
 });
 
+// ========== КНОПКА "КАРАНДАШ" (СОЗДАТЬ) ==========
+document.getElementById('createBtn').addEventListener('click', () => {
+  const name = prompt('Название чата или канала:');
+  if (!name) return;
+  const type = confirm('Нажмите "ОК" для канала, "Отмена" для чата.') ? 'channel' : 'chat';
+  socket.emit('createRoom', { name, type });
+});
+
 // ========== ЛЕНТА ==========
 function loadFeed() {
   if (!currentUser) return;
   socket.emit('getFeed');
 }
+let feedLoadedOnce = false;
 socket.on('feed', messages => {
+  feedLoadedOnce = true;
   if (!messages.length) {
     feedPlaceholder.style.display = 'block';
     return;
@@ -650,10 +660,21 @@ sendBtn.addEventListener('click', () => {
 let currentTrack = null;
 
 async function loadAllTracks() {
-  const res = await fetch('/api/music');
-  const tracks = await res.json();
-  const html = tracks.map(t => `<div class="track-item" data-url="${t.url}" data-title="${escapeHtml(t.title)}">🎵 ${escapeHtml(t.title)}</div>`).join('');
-  document.getElementById('musicContent').innerHTML = '<div class="track-list">' + (html || 'Нет треков') + '</div>';
+  try {
+    const res = await fetch('/api/music');
+    const tracks = await res.json();
+    const musicContent = document.getElementById('musicContent');
+    if (!tracks.length) {
+      musicContent.innerHTML = '<div class="empty-feed">🎵 Нет загруженных треков</div>';
+      return;
+    }
+    musicContent.innerHTML = '<div class="track-list">' +
+      tracks.map(t => `<div class="track-item" data-url="${t.url}" data-title="${escapeHtml(t.title)}">🎵 ${escapeHtml(t.title)}</div>`).join('') +
+      '</div>';
+  } catch (err) {
+    document.getElementById('musicContent').innerHTML = '<div class="empty-feed">⚠ Ошибка загрузки треков</div>';
+    console.error(err);
+  }
 }
 
 document.getElementById('addTrackBtn').addEventListener('click', () => {
@@ -693,17 +714,23 @@ document.getElementById('rewindBack').addEventListener('click', () => { if (curr
 document.getElementById('rewindForward').addEventListener('click', () => { if (currentTrack) currentTrack.currentTime += 5; });
 
 // ========== НАСТРОЙКИ ==========
-document.getElementById('uploadAvatarBtn').addEventListener('click', () => document.getElementById('avatarInput').click());
+document.getElementById('uploadAvatarBtn').addEventListener('click', () => {
+  document.getElementById('avatarInput').click();
+});
 document.getElementById('avatarInput').addEventListener('change', async e => {
   const file = e.target.files[0];
-  if (!file) return;
+  if (!file || !currentUser) return;
   const reader = new FileReader();
   reader.onload = ev => document.getElementById('avatarPreview').src = ev.target.result;
   reader.readAsDataURL(file);
   const form = new FormData();
   form.append('avatar', file);
   form.append('userId', currentUser.uin);
-  await fetch('/upload/avatar', { method: 'POST', body: form });
+  try {
+    await fetch('/upload/avatar', { method: 'POST', body: form });
+  } catch (err) {
+    console.error('Ошибка загрузки аватара:', err);
+  }
 });
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
